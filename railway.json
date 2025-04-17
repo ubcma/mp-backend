@@ -1,0 +1,12 @@
+{
+    "build": {
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "command": "pnpm install && pnpm build"
+    },
+    "deploy": {
+      "startCommand": "pnpm start",
+      "restartPolicyType": "ON_FAILURE"
+    }
+  }
