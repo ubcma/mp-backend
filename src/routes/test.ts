@@ -3,6 +3,6 @@ import { getTest } from "../controllers/testController";
 
 const testRouter = Router();
 
-testRouter.get("/test", getTest);
+testRouter.get("/", getTest);
 
 export default testRouter;

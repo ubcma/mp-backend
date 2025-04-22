@@ -15,6 +15,7 @@
   "packageManager": "pnpm@10.8.0",
   "dependencies": {
     "better-auth": "^1.2.7",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.42.0",
     "drizzle-orm-pg": "^0.16.3",
@@ -23,6 +24,7 @@
     "pg": "^8.14.1"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
     "@types/express": "^5.0.1",
     "@types/node": "^22.14.1",
     "@types/pg": "^8.11.13",

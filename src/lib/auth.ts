@@ -5,7 +5,7 @@ import { Redis } from "ioredis";
 import { db } from "../db";
 import { userProfiles } from "../db/schema/userProfiles";
 
-const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
+export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
     console.error("Redis connection error:", err);
   })
@@ -61,6 +61,7 @@ export const auth = betterAuth({
             userId: newSession.user.id,
             name: newSession.user.name,
             email: newSession.user.email,
+            role: "Member",
             avatarUrl: "",
             bio: "",
             linkedinUrl: "",
