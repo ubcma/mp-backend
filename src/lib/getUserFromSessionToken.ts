@@ -40,6 +40,12 @@ export async function getUserFromSessionToken(token: string | undefined) {
       major: userProfiles.major,
       yearLevel: userProfiles.yearLevel,
       role: userProfiles.role,
+      avatarUrl: userProfiles.avatarUrl,
+      bio: userProfiles.bio,
+      linkedinUrl: userProfiles.linkedinUrl,
+      coursesTaken: userProfiles.coursesTaken,
+      diet: userProfiles.diet,
+      specialization: userProfiles.specialization,
     })
     .from(users)
     .leftJoin(userProfiles, eq(users.id, userProfiles.userId))
@@ -56,5 +62,11 @@ export async function getUserFromSessionToken(token: string | undefined) {
     major: user.major,
     yearLevel: user.yearLevel,
     role: user.role,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    linkedinUrl: user.linkedinUrl,
+    coursesTaken: user.coursesTaken,
+    diet: user.diet,
+    specialization: user.specialization,
   };
 }
