@@ -5,12 +5,12 @@ import type { Request, Response, NextFunction } from 'express';
 import dotenv from "dotenv";
 dotenv.config();
 import { auth } from "./lib/auth";
-import testRouter from "./routes/test";
-import meRouter from "./routes/me";
+import testRouter from "./routes/testRoute";
+import meRouter from "./routes/meRoute";
 const app = express();
 const port = process.env.PORT || 8080;
 
-app.all("/api/auth/*splat", toNodeHandler(auth));
+app.all('/api/auth/*splat', toNodeHandler(auth)); // ✅ Better Auth native routes
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/test", testRouter);
