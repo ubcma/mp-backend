@@ -1,20 +1,25 @@
 import express from "express";
+import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { toNodeHandler } from "better-auth/node";
 import type { Request, Response, NextFunction } from 'express';
 import dotenv from "dotenv";
 dotenv.config();
 import { auth } from "./lib/auth";
-import testRouter from "./routes/testRoute";
 import meRouter from "./routes/meRoute";
+import eventRouter from "./routes/eventRoutes";
 const app = express();
 const port = process.env.PORT || 8080;
 
-app.all('/api/auth/*splat', toNodeHandler(auth)); // ✅ Better Auth native routes
+app.all('/api/auth/*splat', toNodeHandler(auth));
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
-app.use("/api/test", testRouter);
 app.use("/api/me", meRouter);
+app.use("/api", eventRouter);
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Error caught:', err);

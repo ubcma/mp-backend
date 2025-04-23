@@ -1,7 +1,7 @@
 import { integer, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 
-export const userProfiles = pgTable("user-profiles", {
+export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
 
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),

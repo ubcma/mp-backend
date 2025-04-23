@@ -1,8 +1,0 @@
-import { Router } from "express";
-import { getTest } from "../controllers/testController";
-
-const testRouter = Router();
-
-testRouter.get("/", getTest);
-
-export default testRouter;
