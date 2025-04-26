@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { getMe } from "../controllers/meController";
+import { getMe, updateMe } from "../controllers/meController";
 import { asyncHandler } from "../lib/asyncHandler";
-import { requireAuth } from "../lib/middleware/requireAuth";
 
 const meRouter = Router();
 
-meRouter.get("/", requireAuth, asyncHandler(getMe));
+meRouter.get("/", asyncHandler(getMe));
+meRouter.post("/", asyncHandler(updateMe));
 
 export default meRouter;

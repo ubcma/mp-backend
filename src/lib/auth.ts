@@ -3,7 +3,11 @@ import { createAuthMiddleware, openAPI } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Redis } from "ioredis";
 import { db } from "../db";
-import { userProfiles } from "../db/schema/userProfiles";
+import { userProfile, userRoleEnum } from "../db/schema/userProfile";
+import { users } from "../db/schema/auth";
+import { eq } from "drizzle-orm";
+
+type UserRole = (typeof userRoleEnum.enumValues)[number];
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -20,10 +24,20 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  origin:
+    process.env.NODE_ENV === "development"
+      ? ["http://localhost:3000"]
+      : [process.env.FRONTEND_URL!],
   session: {
     cookieCache: {
       enabled: true,
       maxAge: 5 * 60,
+    },
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     },
   },
   plugins: [openAPI()],
@@ -31,6 +45,7 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
     log: console.log,
   }),
+  trustedOrigins: ["http://localhost:3000"],
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
@@ -48,31 +63,53 @@ export const auth = betterAuth({
     },
   },
   advanced: {
-    cookiePrefix: "membership-portal"
+    cookiePrefix: "membership-portal",
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
-      if (ctx.path.startsWith("/sign-up")) {
-        const newSession = ctx.context.newSession;
-        if (newSession) {
-          console.log(`Creating profile for user id=${newSession.user.id}`);
+      const newSession = ctx.context.newSession;
 
-          await db.insert(userProfiles).values({
-            userId: newSession.user.id,
-            name: newSession.user.name,
-            email: newSession.user.email,
-            role: "Member",
-            avatarUrl: "",
-            bio: "",
-            linkedinUrl: "",
-            yearLevel: "",
-            major: "",
-            specialization: "",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+      const shouldCheckProfile = ctx.path.startsWith("/sign-up") || ctx.path.startsWith("/sign-in");
 
-          console.log(`✅ Profile created for user id=${newSession.user.id}`);
+      if (shouldCheckProfile && newSession && newSession.user) {
+        const user = newSession.user;
+
+        try {
+          const existingProfile = await db
+            .select()
+            .from(userProfile)
+            .where(eq(userProfile.userId, user.id))
+            .limit(1);
+
+          if (existingProfile.length > 0) {
+            console.log(
+              `Profile already exists for user id=${user.id}, skipping creation.`
+            );
+          } else {
+            console.log(`Creating profile for new user id=${user.id}`);
+
+            await db.insert(userProfile).values({
+              userId: user.id,
+              name: user.name ?? "",
+              email: user.email,
+              role: "Member" as UserRole,
+              avatar: "",
+              bio: "",
+              linkedinUrl: "",
+              year: "",
+              faculty: "",
+              major: "",
+              diet: [],
+              interests: [],
+              onboardingComplete: false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            console.log(`✅ Profile created for user id=${user.id}`);
+          }
+        } catch (error) {
+          console.error("Failed to create userProfile:", error);
         }
       }
     }),
