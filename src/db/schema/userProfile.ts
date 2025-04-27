@@ -11,18 +11,18 @@ import {
 import { users } from "./auth";
 import { sql } from "drizzle-orm";
 
-export const userRoleEnum = pgEnum("user_role", [
-  "Guest",
-  "Member",
-  "Admin",
-]);
+export const userRoleEnum = pgEnum("user_role", ["Guest", "Member", "Admin"]);
 
-export type UserRole = typeof userRoleEnum.enumValues[number];
+export type UserRole = (typeof userRoleEnum.enumValues)[number];
 
 export const userProfile = pgTable("user_profile", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull().default(sql`DEFAULT`),
+  id: bigint("id", { mode: "number" })
+    .primaryKey()
+    .notNull()
+    .default(sql`DEFAULT`),
   userId: text("user_id")
     .notNull()
+    .unique()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   email: text("email").notNull(),
@@ -35,7 +35,7 @@ export const userProfile = pgTable("user_profile", {
   interests: text("interests").array(),
   diet: text("diet").array(),
   onboardingComplete: boolean("onboarding_complete").default(false),
-  role: userRoleEnum("role").notNull(),
+  role: userRoleEnum("role").notNull().default("Member"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

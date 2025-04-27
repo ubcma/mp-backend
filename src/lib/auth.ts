@@ -3,11 +3,7 @@ import { createAuthMiddleware, openAPI } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Redis } from "ioredis";
 import { db } from "../db";
-import { userProfile, userRoleEnum } from "../db/schema/userProfile";
-import { users } from "../db/schema/auth";
-import { eq } from "drizzle-orm";
-
-type UserRole = (typeof userRoleEnum.enumValues)[number];
+import { userProfile } from "../db/schema/userProfile";
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -69,30 +65,18 @@ export const auth = betterAuth({
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;
 
-      const shouldCheckProfile = ctx.path.startsWith("/sign-up") || ctx.path.startsWith("/sign-in");
-
-      if (shouldCheckProfile && newSession && newSession.user) {
+      if (newSession && newSession.user) {
         const user = newSession.user;
 
         try {
-          const existingProfile = await db
-            .select()
-            .from(userProfile)
-            .where(eq(userProfile.userId, user.id))
-            .limit(1);
+          console.log(`Creating profile for new user id=${user.id}`);
 
-          if (existingProfile.length > 0) {
-            console.log(
-              `Profile already exists for user id=${user.id}, skipping creation.`
-            );
-          } else {
-            console.log(`Creating profile for new user id=${user.id}`);
-
-            await db.insert(userProfile).values({
+          await db
+            .insert(userProfile)
+            .values({
               userId: user.id,
               name: user.name ?? "",
               email: user.email,
-              role: "Member" as UserRole,
               avatar: "",
               bio: "",
               linkedinUrl: "",
@@ -102,14 +86,14 @@ export const auth = betterAuth({
               diet: [],
               interests: [],
               onboardingComplete: false,
-              createdAt: new Date(),
-              updatedAt: new Date(),
+            })
+            .onConflictDoNothing({
+              target: userProfile.userId,
             });
 
-            console.log(`✅ Profile created for user id=${user.id}`);
-          }
+          console.log(`✅ Success! Profile created for user ${user.name}`);
         } catch (error) {
-          console.error("Failed to create userProfile:", error);
+          console.error("Failed to create user profile:", error);
         }
       }
     }),
