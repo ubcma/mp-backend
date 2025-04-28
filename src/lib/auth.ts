@@ -93,7 +93,7 @@ export const auth = betterAuth({
 
           console.log(`✅ Success! Profile created for user ${user.name}`);
         } catch (error) {
-          console.error("Failed to create user profile:", error);
+          console.error("❌ Failed to create user profile:", error);
         }
       }
     }),
