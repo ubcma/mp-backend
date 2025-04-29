@@ -85,6 +85,10 @@ type UpdateUserProfileInput = {
   diet?: string[];
 };
 
+function isValidField(value: any) {
+  return value !== undefined && value !== null && value !== '';
+}
+
 export async function updateUserProfile(
   userId: string,
   data: UpdateUserProfileInput
@@ -93,18 +97,15 @@ export async function updateUserProfile(
     const result = await db
       .update(userProfile)
       .set({
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.bio !== undefined && { bio: data.bio }),
-        ...(data.avatar !== undefined && { avatar: data.avatar }),
-        ...(data.year !== undefined && { year: data.year }),
-        ...(data.faculty !== undefined && { faculty: data.faculty }),
-        ...(data.major !== undefined && { major: data.major }),
-        ...(data.linkedinUrl !== undefined && {
-          linkedinUrl: data.linkedinUrl,
-        }),
-        ...(data.interests !== undefined && { interests: data.interests }),
-        ...(data.diet !== undefined && { diet: data.diet }),
-        ...({onboardingComplete: true}),
+        ...(isValidField(data.bio) && { bio: data.bio }),
+        ...(isValidField(data.avatar) && { avatar: data.avatar }),
+        ...(isValidField(data.year) && { year: data.year }),
+        ...(isValidField(data.faculty) && { faculty: data.faculty }),
+        ...(isValidField(data.major) && { major: data.major }),
+        ...(isValidField(data.linkedinUrl) && { linkedinUrl: data.linkedinUrl }),
+        ...(isValidField(data.interests) && { interests: data.interests }),
+        ...(isValidField(data.diet) && { diet: data.diet }),
+        onboardingComplete: true,
         updatedAt: new Date(),
       })
       .where(eq(userProfile.userId, userId))

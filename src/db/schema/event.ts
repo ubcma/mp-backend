@@ -28,16 +28,18 @@ export const questionTypeEnum = pgEnum("question_type", [
 ]);
 
 export const tag = pgTable("tag", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull()
+  .default(sql`DEFAULT`),
   name: text("name").unique().notNull(),
 });
 
 export const event = pgTable("event", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull()
+  .default(sql`DEFAULT`),
+  title: text("title").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   location: text("location").notNull(),
-  title: text("title").notNull(),
   description: text("description"),
   imageUrl: text("image_url"),
   slug: text("slug").notNull(),
@@ -64,7 +66,8 @@ export const eventTag = pgTable(
 );
 
 export const eventSignup = pgTable("event_signup", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull()
+  .default(sql`DEFAULT`),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -81,7 +84,8 @@ export const eventSignup = pgTable("event_signup", {
 });
 
 export const question = pgTable("question", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull()
+  .default(sql`DEFAULT`),
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
@@ -103,7 +107,8 @@ export const question = pgTable("question", {
 });
 
 export const eventSignupResponse = pgTable("event_signup_response", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull(),
+  id: bigint("id", { mode: "number" }).primaryKey().notNull()
+  .default(sql`DEFAULT`),
   signupId: bigint("signup_id", { mode: "number" })
     .notNull()
     .references(() => eventSignup.id, { onDelete: "cascade" }),

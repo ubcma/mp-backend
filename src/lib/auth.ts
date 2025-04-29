@@ -75,16 +75,9 @@ export const auth = betterAuth({
             .insert(userProfile)
             .values({
               userId: user.id,
-              name: user.name ?? "",
+              name: user.name,
               email: user.email,
-              avatar: "",
-              bio: "",
-              linkedinUrl: "",
-              year: "",
-              faculty: "",
-              major: "",
-              diet: [],
-              interests: [],
+              avatar: user.image,
               onboardingComplete: false,
             })
             .onConflictDoNothing({
