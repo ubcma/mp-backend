@@ -20,7 +20,7 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/me", meRouter);
-app.use("/api", eventRouter);
+app.use("/api/events", eventRouter);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

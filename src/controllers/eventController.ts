@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
-import { event, eventTag, tag } from "../db/schema/event";
+import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
 import { userProfile, userRoleEnum } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
@@ -12,6 +12,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
       .select({
         id: event.id,
         title: event.title,
+        slug: event.slug,
         startsAt: event.startsAt,
         endsAt: event.endsAt,
         price: event.price,
@@ -30,6 +31,86 @@ export const getAllEvents = async (req: Request, res: Response) => {
   }
 };
 
+export const getEventBySlug = async (req: Request, res: Response) => {
+  const { slug } = req.params;
+
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const [fetchedEvent] = await db
+      .select()
+      .from(event)
+      .where(eq(event.slug, slug))
+      .limit(1);
+
+    if (!fetchedEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const eventQuestions = await db
+      .select()
+      .from(question)
+      .where(eq(question.eventId, fetchedEvent.id));
+
+    const tagRows = await db
+      .select({
+        id: tag.id,
+        name: tag.name,
+      })
+      .from(eventTag)
+      .leftJoin(tag, eq(eventTag.tagId, tag.id))
+      .where(eq(eventTag.eventId, fetchedEvent.id));
+
+    return res.json({
+      event: fetchedEvent,
+      questions: eventQuestions,
+      tags: tagRows.map((t) => t.name),
+    });
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const QUESTION_TYPES = [
+  "ShortText",
+  "LongText",
+  "Email",
+  "Number",
+  "Date",
+  "Time",
+  "Radio",
+  "Select",
+  "Checkbox",
+  "YesNo",
+  "FileUpload",
+] as const;
+
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+export type QuestionInput = {
+  id: string;
+  label: string;
+  placeholder?: string;
+  type: QuestionType;
+  isRequired: boolean;
+  options?: string[];
+  validation?: Record<string, any>;
+  sortOrder: number;
+};
+
 type CreateEventInput = {
   title: string;
   slug: string;
@@ -39,6 +120,7 @@ type CreateEventInput = {
   location: string;
   startsAt: Date;
   endsAt: Date;
+  questions: QuestionInput[];
 };
 
 export const createEvent = async (req: Request, res: Response) => {
@@ -75,11 +157,10 @@ export const createEvent = async (req: Request, res: Response) => {
     }
 
     const data: CreateEventInput = req.body;
-
     const startsAt = new Date(data.startsAt);
     const endsAt = new Date(data.endsAt);
 
-    const response = await db
+    const [eventRecord] = await db
       .insert(event)
       .values({
         title: data.title,
@@ -95,7 +176,31 @@ export const createEvent = async (req: Request, res: Response) => {
       })
       .returning();
 
-    return res.json({ message: "Successfully created event:", body: response });
+    const eventId = eventRecord.id;
+
+    if (Array.isArray(data.questions)) {
+      await db.insert(question).values(
+        data.questions.map((q: QuestionInput) => ({
+          eventId,
+          label: q.label,
+          placeholder: q.placeholder,
+          type: q.type,
+          isRequired: q.isRequired,
+          options: q.options ?? null,
+          validation: q.validation ?? {},
+          sortOrder: q.sortOrder,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }))
+      );
+    }
+
+    console.log("Questions created successfully");
+
+    return res.json({
+      message: "Successfully created event",
+      body: eventRecord,
+    });
   } catch (error) {
     console.error("Error creating event:", error);
     return res.status(500).json({ error: "Internal Server Error" });
