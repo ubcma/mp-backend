@@ -5,6 +5,12 @@ import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
 import { userProfile, userRoleEnum } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
+import {
+  CreateEventInput,
+  QuestionInput,
+  UpdateEventInput,
+} from "../types/event";
+import { isValidField } from "../lib/utils";
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
@@ -15,6 +21,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
         slug: event.slug,
         startsAt: event.startsAt,
         endsAt: event.endsAt,
+        location: event.location,
         price: event.price,
         tags: tag.name,
         description: event.description,
@@ -84,45 +91,6 @@ export const getEventBySlug = async (req: Request, res: Response) => {
   }
 };
 
-export const QUESTION_TYPES = [
-  "ShortText",
-  "LongText",
-  "Email",
-  "Number",
-  "Date",
-  "Time",
-  "Radio",
-  "Select",
-  "Checkbox",
-  "YesNo",
-  "FileUpload",
-] as const;
-
-export type QuestionType = (typeof QUESTION_TYPES)[number];
-
-export type QuestionInput = {
-  id: string;
-  label: string;
-  placeholder?: string;
-  type: QuestionType;
-  isRequired: boolean;
-  options?: string[];
-  validation?: Record<string, any>;
-  sortOrder: number;
-};
-
-type CreateEventInput = {
-  title: string;
-  slug: string;
-  description: string;
-  imageUrl: string;
-  price: number;
-  location: string;
-  startsAt: Date;
-  endsAt: Date;
-  questions: QuestionInput[];
-};
-
 export const createEvent = async (req: Request, res: Response) => {
   const headers = new Headers();
 
@@ -167,7 +135,7 @@ export const createEvent = async (req: Request, res: Response) => {
         slug: data.slug,
         description: data.description,
         imageUrl: data.imageUrl,
-        price: data.price?.toString(),
+        price: data.price,
         location: data.location,
         startsAt: startsAt,
         endsAt: endsAt,
@@ -200,6 +168,67 @@ export const createEvent = async (req: Request, res: Response) => {
     return res.json({
       message: "Successfully created event",
       body: eventRecord,
+    });
+  } catch (error) {
+    console.error("Error creating event:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const updateEventById = async (req: Request, res: Response) => {
+
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = session.user.id;
+
+    const [user] = await db
+      .select({
+        userRole: userProfile.role,
+      })
+      .from(users)
+      .leftJoin(userProfile, eq(users.id, userProfile.userId))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const userRole = user?.userRole;
+
+    if (userRole !== "Admin") {
+      return res.status(403).json({ error: "Forbidden: Admins only" });
+    }
+
+    const data: UpdateEventInput = req.body;
+
+    const [updatedEvent] = await db
+      .update(event)
+      .set({
+        title: data.title,
+        description: data.description,
+        imageUrl: data.imageUrl,
+        price: data.price,
+        location: data.location,
+        startsAt: new Date(data.startsAt),
+        endsAt: new Date(data.endsAt),
+        updatedAt: new Date(),
+      })
+      .where(eq(event.id, data.id))
+      .returning();
+
+    return res.json({
+      message: "Successfully updated event",
+      body: updatedEvent,
     });
   } catch (error) {
     console.error("Error creating event:", error);

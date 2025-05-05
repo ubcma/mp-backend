@@ -43,7 +43,7 @@ export const event = pgTable("event", {
   description: text("description"),
   imageUrl: text("image_url"),
   slug: text("slug").notNull(),
-  price: numeric("price"),
+  price: integer("price"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
