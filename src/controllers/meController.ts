@@ -4,13 +4,14 @@ import { userProfile } from "../db/schema/userProfile";
 import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
+import { isValidField } from "../lib/utils";
+import { UpdateUserProfileInput } from "../types/user";
 
 export const getMe = async (req: Request, res: Response) => {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
-    headers.append('cookie', req.headers.cookie);
+    headers.append("cookie", req.headers.cookie);
   }
 
   try {
@@ -38,7 +39,7 @@ export const getMe = async (req: Request, res: Response) => {
         linkedinUrl: userProfile.linkedinUrl,
         diet: userProfile.diet,
         interests: userProfile.interests,
-        onboardingComplete: userProfile.onboardingComplete
+        onboardingComplete: userProfile.onboardingComplete,
       })
       .from(users)
       .leftJoin(userProfile, eq(users.id, userProfile.userId))
@@ -66,28 +67,11 @@ export const getMe = async (req: Request, res: Response) => {
       interests: user.interests,
       onboardingComplete: user.onboardingComplete,
     });
-
   } catch (error) {
     console.error("Error fetching user:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
-type UpdateUserProfileInput = {
-  name?: string;
-  avatar?: string;
-  year?: string;
-  bio?: string;
-  faculty?: string;
-  major?: string;
-  linkedinUrl?: string;
-  interests?: string[];
-  diet?: string[];
-};
-
-function isValidField(value: any) {
-  return value !== undefined && value !== null && value !== '';
-}
 
 export async function updateUserProfile(
   userId: string,
@@ -102,7 +86,9 @@ export async function updateUserProfile(
         ...(isValidField(data.year) && { year: data.year }),
         ...(isValidField(data.faculty) && { faculty: data.faculty }),
         ...(isValidField(data.major) && { major: data.major }),
-        ...(isValidField(data.linkedinUrl) && { linkedinUrl: data.linkedinUrl }),
+        ...(isValidField(data.linkedinUrl) && {
+          linkedinUrl: data.linkedinUrl,
+        }),
         ...(isValidField(data.interests) && { interests: data.interests }),
         ...(isValidField(data.diet) && { diet: data.diet }),
         onboardingComplete: true,
@@ -122,12 +108,12 @@ export const updateMe = async (req: Request, res: Response) => {
   const headers = new Headers();
 
   if (req.headers.cookie) {
-    headers.append('cookie', req.headers.cookie);
+    headers.append("cookie", req.headers.cookie);
   }
-  
+
   try {
     const session = await auth.api.getSession({
-      headers: headers
+      headers: headers,
     });
 
     if (!session) {
