@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { Redis } from "ioredis";
 import { db } from "../db";
 import { userProfile } from "../db/schema/userProfile";
+import { eq } from "drizzle-orm";
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -69,6 +70,16 @@ export const auth = betterAuth({
         const user = newSession.user;
 
         try {
+          const existingUser = await db
+            .select()
+            .from(userProfile)
+            .where(eq(userProfile.userId, user.id))
+            .limit(1);
+
+          if (existingUser.length > 0) {
+            return;
+          }
+
           console.log(`Creating profile for new user id=${user.id}`);
 
           await db
