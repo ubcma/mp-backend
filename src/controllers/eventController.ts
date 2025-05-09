@@ -7,6 +7,7 @@ import { userProfile, userRoleEnum } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
 import {
   CreateEventInput,
+  DeleteEventInput,
   QuestionInput,
   UpdateEventInput,
 } from "../types/event";
@@ -137,6 +138,7 @@ export const createEvent = async (req: Request, res: Response) => {
         imageUrl: data.imageUrl,
         price: data.price,
         location: data.location,
+        isVisible: data.isVisible,
         startsAt: startsAt,
         endsAt: endsAt,
         createdAt: new Date(),
@@ -146,7 +148,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
     const eventId = eventRecord.id;
 
-    if (Array.isArray(data.questions)) {
+    if (Array.isArray(data.questions) && data.questions.length > 0) {
       await db.insert(question).values(
         data.questions.map((q: QuestionInput) => ({
           eventId,
@@ -233,6 +235,54 @@ export const updateEventById = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error creating event:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const deleteEventById = async (req: Request, res: Response) => {
+
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = session.user.id;
+
+    const [user] = await db
+      .select({
+        userRole: userProfile.role,
+      })
+      .from(users)
+      .leftJoin(userProfile, eq(users.id, userProfile.userId))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    const userRole = user?.userRole;
+
+    if (userRole !== "Admin") {
+      return res.status(403).json({ error: "Forbidden: Admins only" });
+    }
+
+    const data: DeleteEventInput = req.body;
+
+    await db.delete(event).where(eq(event.id, data.id));
+
+    return res.json({
+      message: "Successfully deleted event with ID: " + data.id
+    });
+
+  } catch (error) {
+    console.error("Error deleting event:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };

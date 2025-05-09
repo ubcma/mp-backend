@@ -20,6 +20,7 @@ export type CreateEventInput = {
   imageUrl: string;
   price: number;
   location: string;
+  isVisible: boolean;
   startsAt: Date;
   endsAt: Date;
   questions: QuestionInput[];
@@ -38,3 +39,7 @@ export type UpdateEventInput = {
   isVisible: boolean;
   questions: QuestionInput[];
 };
+
+export type DeleteEventInput = {
+  id: number;
+}
