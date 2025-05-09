@@ -10,7 +10,6 @@ import {
   QuestionInput,
   UpdateEventInput,
 } from "../types/event";
-import { isValidField } from "../lib/utils";
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
@@ -26,6 +25,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
         tags: tag.name,
         description: event.description,
         imageUrl: event.imageUrl,
+        isVisible: event.isVisible
       })
       .from(event)
       .leftJoin(eventTag, eq(eventTag.eventId, event.id))
@@ -219,6 +219,7 @@ export const updateEventById = async (req: Request, res: Response) => {
         imageUrl: data.imageUrl,
         price: data.price,
         location: data.location,
+        isVisible: data.isVisible,
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),

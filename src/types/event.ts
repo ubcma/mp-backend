@@ -35,5 +35,6 @@ export type UpdateEventInput = {
   location: string;
   startsAt: Date;
   endsAt: Date;
+  isVisible: boolean;
   questions: QuestionInput[];
 };
