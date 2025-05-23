@@ -38,7 +38,7 @@ export const auth = betterAuth({
   plugins: [openAPI()],
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
-    log: console.log,
+    // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   }),
   trustedOrigins: [process.env.FRONTEND_URL!],
   secondaryStorage: {
