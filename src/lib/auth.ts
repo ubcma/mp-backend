@@ -18,13 +18,11 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET!,
   emailAndPassword: {
     enabled: true,
   },
-  origin:
-    process.env.NODE_ENV === "development"
-      ? ["http://localhost:3000"]
-      : [process.env.FRONTEND_URL!],
+  origin: [process.env.FRONTEND_URL!],
   session: {
     cookieCache: {
       enabled: true,
@@ -42,7 +40,7 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
     log: console.log,
   }),
-  trustedOrigins: ["http://localhost:3000"],
+  trustedOrigins: [process.env.FRONTEND_URL!],
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
