@@ -22,7 +22,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  origin: [process.env.FRONTEND_URL!, "http://localhost:3000", "http://localhost:4000"],
+  origin: [
+    process.env.FRONTEND_URL!,
+    "http://localhost:3000",
+    "http://localhost:4000",
+  ],
   session: {
     cookieCache: {
       enabled: true,
@@ -40,7 +44,14 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
     // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   }),
-  trustedOrigins: [process.env.FRONTEND_URL!, "http://localhost:3000", "http://localhost:4000"],
+  trustedOrigins: [
+    process.env.FRONTEND_URL!,
+    "http://localhost:3000",
+    "http://localhost:4000",
+    "https://membership.ubcma.ca",
+    "https://mp-backend-dev.up.railway.app",
+    "https://membership-portal-git-ethan-mp-17-admin-65a1ff-ubcmas-projects.vercel.app",
+  ],
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
@@ -59,6 +70,12 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: "membership-portal",
+    defaultCookieAttributes: {
+      secure: true,
+      httpOnly: true,
+      sameSite: "none",
+      partitioned: true,
+    },
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
