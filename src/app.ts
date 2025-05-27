@@ -9,13 +9,7 @@ import eventRouter from "./routes/eventRoutes";
 const app = express();
 
 app.use(cors({
-  origin: (origin, callback) => {
-      if (origin && origin.includes('.vercel.app') || origin === process.env.FRONTEND_URL || origin === 'http://localhost:3000' || origin === 'http://localhost:4000') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+  origin: process.env.NODE_ENV === "development" ? "http://localhost:3000" : process.env.FRONTEND_URL,
   credentials: true,
 }));
 
