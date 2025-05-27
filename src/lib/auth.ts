@@ -22,7 +22,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  origin: [process.env.FRONTEND_URL!],
+  origin: [process.env.FRONTEND_URL!, "http://localhost:3000", "http://localhost:4000"],
   session: {
     cookieCache: {
       enabled: true,
@@ -40,7 +40,7 @@ export const auth = betterAuth({
     connectionString: process.env.DATABASE_URL,
     // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   }),
-  trustedOrigins: [process.env.FRONTEND_URL!],
+  trustedOrigins: [process.env.FRONTEND_URL!, "http://localhost:3000", "http://localhost:4000"],
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
