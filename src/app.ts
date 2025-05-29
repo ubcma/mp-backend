@@ -10,7 +10,8 @@ const app = express();
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  "https://membership.ubcma.ca",
+  "https://app.ubcma.ca",
+  "https://api.ubcma.ca",
   "https://membership-portal.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
