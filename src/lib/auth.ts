@@ -25,8 +25,8 @@ export const auth = betterAuth({
   },
   origin: [
     process.env.FRONTEND_URL!,
-    "https://membership.ubcma.ca",
-    "https://membership-portal.vercel.app",
+    "https://app.ubcma.ca",
+    "https://membership-portal-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
   ],
@@ -49,8 +49,8 @@ export const auth = betterAuth({
   }),
   trustedOrigins: [
     process.env.FRONTEND_URL!,
-    "https://membership.ubcma.ca",
-    "https://membership-portal.vercel.app",
+    "https://app.ubcma.ca",
+    "https://membership-portal-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
   ],
