@@ -24,6 +24,9 @@ export const auth = betterAuth({
   },
   origin: [
     process.env.FRONTEND_URL!,
+    "https://membership.ubcma.ca",
+    "https://membership-portal.vercel.app",
+    "https://membership-portal-git-ethan-mp-17-admin-65a1ff-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
   ],
@@ -46,11 +49,11 @@ export const auth = betterAuth({
   }),
   trustedOrigins: [
     process.env.FRONTEND_URL!,
+    "https://membership.ubcma.ca",
+    "https://membership-portal.vercel.app",
+    "https://membership-portal-git-ethan-mp-17-admin-65a1ff-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
-    "https://membership.ubcma.ca",
-    "https://mp-backend-dev.up.railway.app",
-    "https://membership-portal-git-ethan-mp-17-admin-65a1ff-ubcmas-projects.vercel.app",
   ],
   secondaryStorage: {
     get: async (key) => {
