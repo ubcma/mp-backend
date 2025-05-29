@@ -76,15 +76,8 @@ export const auth = betterAuth({
     cookiePrefix: "membership-portal",
     defaultCookieAttributes: {
       secure: true,
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "none",
-    },
-  },
-  cookies: {
-    sessionToken: {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
     },
   },
   hooks: {
