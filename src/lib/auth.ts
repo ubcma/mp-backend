@@ -80,6 +80,14 @@ export const auth = betterAuth({
       partitioned: true,
     },
   },
+  cookies: {
+    sessionToken: {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+      domain: undefined,
+    },
+  },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;
