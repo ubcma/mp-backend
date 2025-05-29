@@ -19,6 +19,7 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
+  baseURL: process.env.BETTER_AUTH_URL!,
   emailAndPassword: {
     enabled: true,
   },
@@ -77,7 +78,6 @@ export const auth = betterAuth({
       secure: true,
       httpOnly: true,
       sameSite: "none",
-      partitioned: true,
     },
   },
   cookies: {
@@ -85,7 +85,6 @@ export const auth = betterAuth({
       httpOnly: true,
       sameSite: "none",
       secure: true,
-      domain: undefined,
     },
   },
   hooks: {
