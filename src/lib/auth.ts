@@ -17,6 +17,8 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
     console.log("Redis ready");
   });
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,
@@ -26,6 +28,7 @@ export const auth = betterAuth({
   origin: [
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
+    "https://api.ubcma.ca",
     "https://membership-portal-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
@@ -45,11 +48,11 @@ export const auth = betterAuth({
   plugins: [openAPI()],
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
-    // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   }),
   trustedOrigins: [
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
+    "https://api.ubcma.ca",
     "https://membership-portal-ubcmas-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:4000",
@@ -72,10 +75,15 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: "membership-portal",
+    crossSubDomainCookies: {
+      enabled: isProduction,
+      domain: ".ubcma.ca",
+    },
     defaultCookieAttributes: {
-      secure: true,
+      secure: isProduction,
       httpOnly: true,
-      sameSite: "none",
+      sameSite: isProduction ? "none" : "lax",
+      partitioned: isProduction,
     },
   },
   hooks: {
