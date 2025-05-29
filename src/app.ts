@@ -12,7 +12,6 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   "https://membership.ubcma.ca",
   "https://membership-portal.vercel.app",
-  "https://membership-portal-git-ethan-mp-17-admin-65a1ff-ubcmas-projects.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
 ];
