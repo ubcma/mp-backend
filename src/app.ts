@@ -5,6 +5,7 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth";
 import meRouter from "./routes/meRoute";
 import eventRouter from "./routes/eventRoutes";
+import userRouter from "./routes/userRoutes";
 
 const app = express();
 
@@ -35,5 +36,6 @@ app.use(express.json());
 app.use(cookieParser());
 app.use("/api/me", meRouter);
 app.use("/api/events", eventRouter);
+app.use("/api/users", userRouter);
 
 export default app;
