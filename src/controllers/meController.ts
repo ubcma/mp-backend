@@ -1,3 +1,4 @@
+// mp-backend/src/controllers/meController.ts - Simplified version
 import { Request, Response } from "express";
 import { db } from "../db";
 import { userProfile } from "../db/schema/userProfile";
@@ -6,7 +7,6 @@ import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 
 export const getMe = async (req: Request, res: Response) => {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
@@ -59,7 +59,7 @@ export const getMe = async (req: Request, res: Response) => {
       faculty: user.faculty,
       major: user.major,
       yearLevel: user.yearLevel,
-      avatarUrl: user.avatarUrl,
+      avatarUrl: user.avatarUrl, // This will be the UploadThing URL
       bio: user.bio,
       linkedinUrl: user.linkedinUrl,
       diet: user.diet,
@@ -75,7 +75,7 @@ export const getMe = async (req: Request, res: Response) => {
 
 type UpdateUserProfileInput = {
   name?: string;
-  avatar?: string;
+  avatar?: string; // This will be the UploadThing URL
   year?: string;
   bio?: string;
   faculty?: string;
@@ -98,7 +98,7 @@ export async function updateUserProfile(
       .update(userProfile)
       .set({
         ...(isValidField(data.bio) && { bio: data.bio }),
-        ...(isValidField(data.avatar) && { avatar: data.avatar }),
+        ...(isValidField(data.avatar) && { avatar: data.avatar }), // Store UploadThing URL
         ...(isValidField(data.year) && { year: data.year }),
         ...(isValidField(data.faculty) && { faculty: data.faculty }),
         ...(isValidField(data.major) && { major: data.major }),
@@ -136,11 +136,26 @@ export const updateMe = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
+    // Simple update - just store the UploadThing URL
     const updatedUser = await updateUserProfile(userId, req.body);
 
     return res.json(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);
     return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+// Optional: Add CORS middleware for your backend if needed
+export const corsMiddleware = (req: Request, res: Response, next: any) => {
+  res.header('Access-Control-Allow-Origin', 'http://localhost:3000'); // Your frontend URL
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
   }
 };
