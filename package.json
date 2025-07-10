@@ -1,11 +1,12 @@
 {
   "name": "mp-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "ts-node-dev src/app.ts",
+    "dev": "tsx watch src/app.ts",
     "build": "tsc",
     "start": "node dist/src/app.js"
   },
@@ -22,6 +23,7 @@
     "drizzle-orm": "^0.43.1",
     "drizzle-orm-pg": "^0.16.3",
     "express": "^5.1.0",
+    "headers": "^0.9.6",
     "ioredis": "^5.6.1",
     "pg": "^8.14.1",
     "sonner": "^2.0.5",

@@ -32,6 +32,9 @@ importers:
       express:
         specifier: ^5.1.0
         version: 5.1.0
+      headers:
+        specifier: ^0.9.6
+        version: 0.9.6
       ioredis:
         specifier: ^5.6.1
         version: 5.6.1
@@ -916,6 +919,9 @@ packages:
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
+
+  headers@0.9.6:
+    resolution: {integrity: sha512-jUqE9cWbvlwYbzY2/5KFec4dXl2zUAOJxlFqkip1zogodj5OeOmzRRIZt+jbRyebYNoOQAmje+SviGQ4FU5mYg==}
 
   http-errors@2.0.0:
     resolution: {integrity: sha512-FtwrG/euBzaEjYeRqOgly7G0qviiXoJWnvEH2Z1plBdXgbyjv34pHTSb9zoeHMyDy33+DWy5Wt9Wo+TURtOYSQ==}
@@ -2119,6 +2125,8 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  headers@0.9.6: {}
 
   http-errors@2.0.0:
     dependencies:

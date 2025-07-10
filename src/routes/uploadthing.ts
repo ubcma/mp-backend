@@ -1,7 +1,8 @@
-import { createRouteHandler } from "uploadthing/next";
-import { ourFileRouter } from "../lib/uploadthing";
+// src/routes/uploadthing.ts
+import { Router } from "express";
+import { createRouteHandler } from "uploadthing/express";
+import { ourFileRouter } from "../lib/uploadthing.js"; // or .ts if you’ve converted that too
 
-// Export routes for Next.js App Router
-export const { GET, POST } = createRouteHandler({
-  router: ourFileRouter,
-});
+const router = Router();
+router.use(createRouteHandler({ router: ourFileRouter }));
+export default router;

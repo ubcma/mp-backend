@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { createAuthMiddleware, openAPI } from "better-auth/plugins";
-import { Pool } from "pg";
+import pg from "pg";
+const { Pool } = pg;
 import { Redis } from "ioredis";
 import { db } from "../db";
 import { userProfile } from "../db/schema/userProfile";

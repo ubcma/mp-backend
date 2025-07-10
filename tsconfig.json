@@ -1,15 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
-    "rootDir": ".",
-    "outDir": "dist",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true,
+    "rootDir": "src",
+    "outDir": "dist",
     "skipLibCheck": true,
-    "types": ["node", "express"],
-    "typeRoots": ["./src/types", "./node_modules/@types"],
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "drizzle.config.ts"]
+  "include": ["src"]
 }
