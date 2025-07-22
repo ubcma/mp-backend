@@ -11,7 +11,10 @@ import {
 
 const stripeRouter = express.Router();
 
-stripeRouter.post('/create-payment-intent', handleCreatePaymentIntent); // POST REQUEST -- return the client secret to frontend
+// route to create the payment intent via controller and lib logic via a post request 
+// async control function returns the client secret to return to frontend 
+stripeRouter.post('/create-payment-intent', handleCreatePaymentIntent);
+
 stripeRouter.get('/payment-intent/:userId', handleGetPaymentIntent);
 export default stripeRouter;
 

@@ -2,8 +2,9 @@
 import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
+
 require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // initialize stripe object to create payment intent, utilize with backend webhook
   apiVersion: '2025-05-28.basil', // check api version via stripe dashboard 
 });
 
@@ -27,6 +28,7 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 
+// referenced from 
 export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) {
   const intent = await stripe.paymentIntents.create({
     amount,
@@ -54,7 +56,6 @@ export const getPaymentIntentForUser = async (userId: string) => {
 
   return stripe.paymentIntents.retrieve(paymentIntentId);
   };
-
 
 
 export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Event {
@@ -187,27 +188,6 @@ export async function createCheckoutSession(purchaseType, userId, eventId?, form
 
     await redis.set(`form:${session.id}`, JSON.stringify({ purchaseType, userId, eventId, formResponses }));
   return session;
-}
-
-export function verifyStripeWebhook(req) {
-  const sig = req.headers["stripe-signature"];
-  return stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-}
-
-export async function processCompletedSession(session) {
-  const data = JSON.parse(await redis.get(`form:${session.id}`));
-  if (!data) throw new Error("No form data in Redis");
-  const { purchaseType, userId, eventId, formResponses } = data;
-
-  if (purchaseType === "membership") {
-    // Update user profile, set isPaidMember, set valid dates
-    await insertMembershipTransaction({ 'relevant details });
-  } else if (purchaseType === "event") {
-    // Insert event signup record plus transaction
-    await insertEventSignup({ userId, eventId, formResponses, session });
-  }
-
-  await redis.del(`form:${session.id}`);
 }
 
 export async function createCheckoutSession(userId: string, eventId: string, formResponses: any) {
