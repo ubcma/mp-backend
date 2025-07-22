@@ -20,6 +20,7 @@ import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
 import { event } from "../db/schema/event";
+
 require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
 
 
