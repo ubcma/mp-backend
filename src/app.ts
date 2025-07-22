@@ -30,9 +30,9 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 app.use(cookieParser());
 
 app.post(
-  "/api/stripe/webhook",
+  "/api/stripe/webhook", // eventual endpoint that will be used for webhook in development (currently testing with cli)
   express.raw({ type: "application/json" }),
-  handleStripeWebhook
+  handleStripeWebhook // reference controller directly (bypass stripeRouter.ts), calls verifyStripeWebhook using stripe object to interact with sdk 
 );
 
 app.use(express.json());
