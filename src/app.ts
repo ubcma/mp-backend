@@ -5,6 +5,7 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, getAllowedOrigins } from "./lib/auth";
 import dotenv from "dotenv";
 dotenv.config({ path: ['.env.local', '.env', '.env.development.local'] });
+import { auth } from "./lib/auth";
 import meRouter from "./routes/meRoute";
 import eventRouter from "./routes/eventRoutes";
 import stripeRouter from "./routes/stripeRoutes";
