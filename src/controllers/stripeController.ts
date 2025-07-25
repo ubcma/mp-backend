@@ -26,6 +26,9 @@ require('dotenv').config({ path: ['.env.development.local', '.env'] }) // change
 /*
 Create the payment intent via stripe sdk in stripe.ts 
 */
+/*
+Create the payment intent via stripe sdk in stripe.ts 
+*/
 export const handleCreatePaymentIntent = async (req: Request, res: Response) => {
   const headers = new Headers();
 
@@ -43,8 +46,8 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
 
     const userId = user.id;
 
-    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
-    const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from teh library
+    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent // pass the request body into the helper function for creation of paymentintent
+    const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from the  library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
     // res.send({clientSecret: paymentIntent?.client_secret}) ?? 
     console.log('Client secret:', paymentIntent.client_secret);

@@ -2,11 +2,13 @@
 import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
+
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
 import { userProfile } from '../db/schema/userProfile';
 import { transaction } from '../db/schema/transaction';
 
+console.log('Loading Stripe with key:', process.env.STRIPE_SECRET_KEY?.slice(0, 10), '...');
 require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // initialize stripe object to create payment intent, utilize with backend webhook
   // apiVersion: '2025-06-30.basil', // check api version via stripe dashboard, may not need to specify
@@ -26,14 +28,12 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 
-/*
-This function is called before payment is rendered, allowing user to access frontend buy button and pay through checkout form
-*/
+
 export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) { //using metadata from 
   const intent = await stripe.paymentIntents.create({
     amount,
     currency,
-    metadata: { purchaseType, userId }, // purchase type and userid stored here 
+    metadata: { purchaseType, userId }, // purchase type and userid stored here  // purchase type and userid stored here 
     payment_method_types: ['card'], // Apple Pay routes through 'card', need to check for other automatic methods 
     /*
     automatic_payment_methods: { // pool Stripe payment methods 
@@ -41,7 +41,14 @@ export async function createPaymentIntent(purchaseType:string, userId:string, am
     }
     */
     
+    /*
+    automatic_payment_methods: { // pool Stripe payment methods 
+      enabled: true 
+    }
+    */
+    
   });
+
 
 
   await redis.set(`pi:${intent.id}`, JSON.stringify({ // IMPORTANT: keep payment id as pid 
@@ -70,11 +77,12 @@ export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Ev
   // let event: Stripe.Event
   // try {event = stripe.webhooks.constructEvent(...)} if you want to set a variable (from video)
   return stripe.webhooks.constructEvent(
+    // req.rawbody, (do not use)
     req.body.toString(), // Stripe signs each webhook it sends via the Node SDK with signature header
     sig,
     endpointSecret
   );
-} 
+} // simply create  
 
 
 /*
@@ -117,7 +125,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     // paid_at: // in stripe schema logic 
     // valid_from: validFrom,
     // valid_until: validUntil,
-    // created_at: new Date(),
+    paid_at: new Date(),
   });
 
   
