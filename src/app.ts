@@ -9,11 +9,12 @@ import userRouter from "./routes/userRoutes";
 
 const app = express();
 
-const allowedOrigins = [
+export const allowedOrigins = [
   process.env.FRONTEND_URL,
   "https://app.ubcma.ca",
   "https://preview.ubcma.ca",
-  "http://localhost:3000",          
+  "http://localhost:3000",         
+  "https://localhost:3000", 
   /\.preview\.ubcma\.ca$/,              
 ];
 

@@ -29,10 +29,9 @@ export const auth = betterAuth({
   origin: [
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
+    "https://preview.ubcma.ca",
     "http://localhost:3000",
-    "http://localhost:4000",
+    "https://localhost:3000",
   ],
   session: {
     cookieCache: {
@@ -53,10 +52,9 @@ export const auth = betterAuth({
   trustedOrigins: [
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
+    "https://preview.ubcma.ca",
     "http://localhost:3000",
-    "http://localhost:4000",
+    "https://localhost:3000",
   ],
   secondaryStorage: {
     get: async (key) => {
