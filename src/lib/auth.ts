@@ -18,6 +18,7 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 const isProduction = process.env.NODE_ENV === "production";
+const isDevelopment = process.env.NODE_ENV === "development";
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -77,12 +78,12 @@ export const auth = betterAuth({
     cookiePrefix: "membership-portal",
     crossSubDomainCookies: {
       enabled: isProduction,
-      domain: ".ubcma.ca",
+      domain: isProduction ? ".ubcma.ca" : undefined,
     },
     defaultCookieAttributes: {
       secure: isProduction,
       httpOnly: true,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: isDevelopment ? "lax" : "none",
       partitioned: isProduction,
     },
   },
