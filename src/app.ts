@@ -10,6 +10,7 @@ import stripeRouter from "./routes/stripeRoutes"
 import { handleStripeWebhook } from "./controllers/stripeController";
 import { auth } from "./lib/auth"; 
 
+
 const app = express();
 const port = process.env.PORT || 8080;
 

@@ -2,19 +2,17 @@
 import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
-
-require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // initialize stripe object to create payment intent, utilize with backend webhook
-  apiVersion: '2025-05-28.basil', // check api version via stripe dashboard 
-});
-
-console.log('Loading Stripe with key:', process.env.STRIPE_SECRET_KEY?.slice(0, 10), '...');
-
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
 import { userProfile } from '../db/schema/userProfile';
 import { transaction } from '../db/schema/transaction';
 
+require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // initialize stripe object to create payment intent, utilize with backend webhook
+  // apiVersion: '2025-06-30.basil', // check api version via stripe dashboard, may not need to specify
+});
+
+console.log('Loading Stripe with key:', process.env.STRIPE_SECRET_KEY?.slice(0, 10), '...');
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -28,14 +26,21 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 
-// referenced from 
-export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) {
+
+export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) { //using metadata from 
   const intent = await stripe.paymentIntents.create({
     amount,
     currency,
-    metadata: { purchaseType, userId },
+    metadata: { purchaseType, userId }, // purchase type and userid stored here 
     payment_method_types: ['card'], // Apple Pay routes through 'card', need to check for other automatic methods 
+    /*
+    automatic_payment_methods: { // pool Stripe payment methods 
+      enabled: true 
+    }
+    */
+    
   });
+
 
   await redis.set(`pi:${intent.id}`, JSON.stringify({ // IMPORTANT: keep payment id as pid 
   purchaseType,
@@ -46,10 +51,10 @@ export async function createPaymentIntent(purchaseType:string, userId:string, am
 }), 'EX', 3600); // store the intent in redis and make sure that it expires in an hour
   // use the intent id for future transaction identification from frontend 
   await redis.set(`user:${userId}:intent`, intent.id, 'EX', 3600); // default expiry 
-  return intent;
+  return intent; // return the entire intent 
 }
 
-
+// in case we need the paymentintent again for a certain user 
 export const getPaymentIntentForUser = async (userId: string) => {
   const paymentIntentId = await redis.get(`pi:${userId}`);
   if (!paymentIntentId) return null;
@@ -59,13 +64,16 @@ export const getPaymentIntentForUser = async (userId: string) => {
 
 
 export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Event {
-  const sig = req.headers['stripe-signature']!;
+  const sig = req.headers['stripe-signature']!; // as string 
+  // let event: Stripe.Event
+  // try {event = stripe.webhooks.constructEvent(...)} if you want to set a variable (from video)
   return stripe.webhooks.constructEvent(
-    req.rawBody, // Make sure you're using the raw body here
+    // req.rawbody, (do not use)
+    req.body.toString(), // Stripe signs each webhook it sends via the Node SDK with signature header
     sig,
     endpointSecret
   );
-}
+} // simply create 
 
 export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   const dataStr = await redis.get(`pi:${intent.id}`);
@@ -98,12 +106,13 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     userId: data.userId,
     stripe_payment_intent_Id: intent.id,
     purchase_type: data.purchaseType,
+    payment_method_type: intent.payment_method_types?.[0] ?? 'card',
     amount: data.amount.toString(),
     currency: data.currency,
     event_id: data.eventId ?? null,
     // valid_from: validFrom,
     // valid_until: validUntil,
-    created_at: new Date(),
+    // created_at: new Date(),
   });
 
   
