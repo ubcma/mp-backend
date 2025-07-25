@@ -17,6 +17,9 @@ importers:
       better-auth:
         specifier: ^1.2.7
         version: 1.2.7
+      body-parser:
+        specifier: ^2.2.0
+        version: 2.2.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
