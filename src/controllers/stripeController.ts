@@ -46,7 +46,7 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
 
     const userId = user.id;
 
-    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent // pass the request body into the helper function for creation of paymentintent
+    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
     const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from the  library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
     // res.send({clientSecret: paymentIntent?.client_secret}) ?? 
