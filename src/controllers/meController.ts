@@ -8,6 +8,11 @@ import { isValidField } from "../lib/utils";
 import { UpdateUserProfileInput } from "../types/user";
 
 export const getMe = async (req: Request, res: Response) => {
+  
+  console.log("Headers:", req.headers);
+  console.log("Cookies:", req.cookies);
+  console.log("Authorization:", req.headers.authorization);
+
   const headers = new Headers();
 
   if (req.headers.cookie) {
