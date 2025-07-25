@@ -27,8 +27,23 @@ require('dotenv').config({ path: ['.env.development.local', '.env'] }) // change
 Create the payment intent via stripe sdk in stripe.ts 
 */
 export const handleCreatePaymentIntent = async (req: Request, res: Response) => {
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append('cookie', req.headers.cookie);
+  }
+
   try {
-    const { purchaseType, userId, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
+    const session = await auth.api.getSession({ headers });
+
+    const user = session?.user;
+    if (!user?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = user.id;
+
+    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
     const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from teh library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
     // res.send({clientSecret: paymentIntent?.client_secret}) ?? 
@@ -83,7 +98,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         break;
       }
       default:
-        console.log(`Unhandled Stripe event type: ${event.type}`);
+        console.log(`Logged event type: ${event.type}`);
     }
 
     // any other Stripe Event
