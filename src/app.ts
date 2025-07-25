@@ -13,21 +13,22 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   "https://app.ubcma.ca",
   "https://preview.ubcma.ca",
-  "https://api.ubcma.ca",
-  "https://api-dev.ubcma.ca",
-  "https://membership-portal.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:4000",
+  "http://localhost:3000",          
+  /\.preview\.ubcma\.ca$/,              
 ];
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.some(pattern =>
+          pattern instanceof RegExp ? pattern.test(origin) : false
+        );
+
+      cb(null, isAllowed);
     },
     credentials: true,
   })
