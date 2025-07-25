@@ -81,9 +81,9 @@ export const auth = betterAuth({
       domain: isProduction ? ".ubcma.ca" : undefined,
     },
     defaultCookieAttributes: {
-      secure: isProduction,
+      secure: true,
       httpOnly: true,
-      sameSite: isDevelopment ? "lax" : "none",
+      sameSite: "none",
       partitioned: isProduction,
     },
   },
