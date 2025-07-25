@@ -14,6 +14,6 @@ export const transaction = pgTable('transaction', {
   currency: text('currency').notNull(),
   event_id: text('event_id'),
   // add payment method
-  created_at: timestamp('created_at').notNull().defaultNow(),
+  //created_at: timestamp('created_at').notNull().defaultNow(),
 });
 
