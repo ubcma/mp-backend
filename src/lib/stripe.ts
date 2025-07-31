@@ -114,6 +114,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     amount: data.amount.toString(),
     currency: data.currency,
     event_id: data.eventId ?? null,
+    // paid_at: // in stripe schema logic 
     // valid_from: validFrom,
     // valid_until: validUntil,
     // created_at: new Date(),
