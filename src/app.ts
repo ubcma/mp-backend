@@ -5,14 +5,10 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, getAllowedOrigins } from "./lib/auth";
 import dotenv from "dotenv";
 dotenv.config({ path: ['.env.local', '.env', '.env.development.local'] });
-import { auth } from "./lib/auth";
 import meRouter from "./routes/meRoute";
 import eventRouter from "./routes/eventRoutes";
 import stripeRouter from "./routes/stripeRoutes";
-<<<<<<< HEAD
 import transactionRouter from './routes/transactionRoutes'; 
-=======
->>>>>>> 9dcd44d (feat: ability to update transations and userid on railway)
 import { handleStripeWebhook } from "./controllers/stripeController";
 import userRouter from "./routes/userRoutes";
 
@@ -36,9 +32,9 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 app.use(cookieParser());
 
 app.post(
-  "/api/stripe/webhook", // eventual endpoint that will be used for webhook in development (currently testing with cli)
+  "/api/stripe/webhook",
   express.raw({ type: "application/json" }),
-  handleStripeWebhook // reference controller directly (bypass stripeRouter.ts), calls verifyStripeWebhook using stripe object to interact with sdk 
+  handleStripeWebhook
 );
 
 app.use(express.json());
@@ -50,3 +46,4 @@ app.use("/api/transactions", transactionRouter)
 app.use("/api/users", userRouter);
 
 export default app;
+
