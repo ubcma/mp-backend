@@ -8,6 +8,7 @@ dotenv.config({ path: ['.env.local', '.env', '.env.development.local'] });
 import meRouter from "./routes/meRoute";
 import eventRouter from "./routes/eventRoutes";
 import stripeRouter from "./routes/stripeRoutes";
+import transactionRouter from './routes/transactionRoutes'; 
 import { handleStripeWebhook } from "./controllers/stripeController";
 import userRouter from "./routes/userRoutes";
 
@@ -41,6 +42,7 @@ app.use(express.json());
 app.use("/api/me", meRouter);
 app.use("/api/events", eventRouter);
 app.use("/api/stripe", stripeRouter);
+app.use("/api/transactions", transactionRouter)
 app.use("/api/users", userRouter);
 
 export default app;
