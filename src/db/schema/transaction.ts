@@ -13,7 +13,6 @@ export const transaction = pgTable('transaction', {
   amount: text('amount').notNull(),
   currency: text('currency').notNull(),
   event_id: text('event_id'),
-  // add payment method
-  //created_at: timestamp('created_at').notNull().defaultNow(),
+  paid_at: timestamp('paid_at').notNull().defaultNow(),
 });
 

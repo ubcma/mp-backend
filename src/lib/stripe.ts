@@ -26,7 +26,9 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 
-
+/*
+This function is called before payment is rendered, allowing user to access frontend buy button and pay 
+*/
 export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) { //using metadata from 
   const intent = await stripe.paymentIntents.create({
     amount,
@@ -68,20 +70,22 @@ export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Ev
   // let event: Stripe.Event
   // try {event = stripe.webhooks.constructEvent(...)} if you want to set a variable (from video)
   return stripe.webhooks.constructEvent(
-    // req.rawbody, (do not use)
     req.body.toString(), // Stripe signs each webhook it sends via the Node SDK with signature header
     sig,
     endpointSecret
   );
-} // simply create 
+} 
 
+
+/*
+This function is called only after the payment has been successfully charged and the webhook is hit with payment_intent.succeeded from SDK
+*/
 export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   const dataStr = await redis.get(`pi:${intent.id}`);
   if (!dataStr) throw new Error(`Missing metadata for PaymentIntent ${intent.id}`);
   const data = JSON.parse(dataStr);
 
   /*
-
   const now = new Date(intent.created * 1000);
   const validFrom = now;
   const validUntil =
