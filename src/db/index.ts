@@ -1,6 +1,14 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schema from './schema/auth';
+
+import * as auth from './schema/auth';
+import * as transactionSchema from './schema/transaction';
+//import * as eventSchema from './schema/event';
+const schema = {
+  ...auth,
+  ...transactionSchema,
+  //...eventSchema
+};
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
