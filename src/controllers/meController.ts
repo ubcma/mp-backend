@@ -5,25 +5,53 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 
+// Utility to check for non-empty fields
+function isValidField(value: any): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
+
+// Extract the UploadThing file key from its URL
+function getFileKeyFromUrl(url: string): string | null {
+  try {
+    const parts = url.split("/");
+    return parts[parts.length - 1];
+  } catch {
+    return null;
+  }
+}
+
+// Dynamically import UTApi and delete the old avatar
+async function deleteOldAvatar(oldAvatarUrl: string) {
+  if (!oldAvatarUrl?.includes("uploadthing")) return;
+
+  const fileKey = getFileKeyFromUrl(oldAvatarUrl);
+  if (!fileKey) return;
+
+  try {
+    const { UTApi } = await import("uploadthing/server");
+    // Pass your token from env
+    const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN! });
+    await utapi.deleteFiles([fileKey]);
+    console.log("Successfully deleted old avatar:", fileKey);
+  } catch (err) {
+    console.error("Error deleting old avatar:", err);
+    // We swallow errors so user update still succeeds
+  }
+}
+
 export const getMe = async (req: Request, res: Response) => {
-
   const headers = new Headers();
-
   if (req.headers.cookie) {
-    headers.append('cookie', req.headers.cookie);
+    headers.append("cookie", req.headers.cookie);
   }
 
   try {
-    const session = await auth.api.getSession({
-      headers: headers,
-    });
-
+    const session = await auth.api.getSession({ headers });
     if (!session) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const userId = session.user.id;
-
     const result = await db
       .select({
         userId: users.id,
@@ -38,7 +66,7 @@ export const getMe = async (req: Request, res: Response) => {
         linkedinUrl: userProfile.linkedinUrl,
         diet: userProfile.diet,
         interests: userProfile.interests,
-        onboardingComplete: userProfile.onboardingComplete
+        onboardingComplete: userProfile.onboardingComplete,
       })
       .from(users)
       .leftJoin(userProfile, eq(users.id, userProfile.userId))
@@ -50,7 +78,6 @@ export const getMe = async (req: Request, res: Response) => {
     }
 
     const user = result[0];
-
     return res.json({
       userId: String(user.userId),
       name: user.name,
@@ -66,7 +93,6 @@ export const getMe = async (req: Request, res: Response) => {
       interests: user.interests,
       onboardingComplete: user.onboardingComplete,
     });
-
   } catch (error) {
     console.error("Error fetching user:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -85,16 +111,27 @@ type UpdateUserProfileInput = {
   diet?: string[];
 };
 
-function isValidField(value: any) {
-  return value !== undefined && value !== null && value !== '';
-}
-
 export async function updateUserProfile(
   userId: string,
   data: UpdateUserProfileInput
 ) {
   try {
-    const result = await db
+    let oldAvatarUrl: string | null = null;
+
+    // If they're changing their avatar, fetch the old one first
+    if (data.avatar) {
+      const current = await db
+        .select({ avatar: userProfile.avatar })
+        .from(userProfile)
+        .where(eq(userProfile.userId, userId))
+        .limit(1);
+
+      if (current.length && current[0].avatar) {
+        oldAvatarUrl = current[0].avatar;
+      }
+    }
+
+    const [updated] = await db
       .update(userProfile)
       .set({
         ...(isValidField(data.bio) && { bio: data.bio }),
@@ -111,7 +148,14 @@ export async function updateUserProfile(
       .where(eq(userProfile.userId, userId))
       .returning();
 
-    return result[0];
+    // Delete the old avatar in the background
+    if (oldAvatarUrl && data.avatar && oldAvatarUrl !== data.avatar) {
+      deleteOldAvatar(oldAvatarUrl).catch((e) =>
+        console.error("Background deletion failed:", e)
+      );
+    }
+
+    return updated;
   } catch (error) {
     console.error("Failed to update user profile:", error);
     throw error;
@@ -120,24 +164,17 @@ export async function updateUserProfile(
 
 export const updateMe = async (req: Request, res: Response) => {
   const headers = new Headers();
-
   if (req.headers.cookie) {
-    headers.append('cookie', req.headers.cookie);
+    headers.append("cookie", req.headers.cookie);
   }
-  
-  try {
-    const session = await auth.api.getSession({
-      headers: headers
-    });
 
+  try {
+    const session = await auth.api.getSession({ headers });
     if (!session) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const userId = session.user.id;
-
-    const updatedUser = await updateUserProfile(userId, req.body);
-
+    const updatedUser = await updateUserProfile(session.user.id, req.body);
     return res.json(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);
