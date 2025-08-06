@@ -19,7 +19,7 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     // Uncomment to restrict to Admin users only
     /*
     if (!session || session.user.role !== 'Admin') {
-      res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ error: "Forbidden: Admins only" });
       return;
     }
     */
@@ -27,8 +27,8 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     const tx = await db
       .select({
         id: transaction.transaction_id,
-        //name: userProfile.name,
-        //email: userProfile.email,
+        userName: userProfile.name,
+        email: userProfile.email,
         userId: transaction.userId,
         purchaseType: transaction.purchase_type,
         amount: transaction.amount,
@@ -36,12 +36,13 @@ export const getAllTransactions = async (req: Request, res: Response) => {
         paymentMethod: transaction.payment_method_type,
         paymentIntentId: transaction.stripe_payment_intent_Id,
         eventId: transaction.event_id,
+        
         paidAt: transaction.paid_at,
       })
       .from(transaction)
       .leftJoin(userProfile, eq(transaction.userId, userProfile.userId));
 
-    res.status(200).json(tx); // ✅ no need to return
+    res.status(200).json(tx); 
   } catch (error) {
     console.error("Failed to fetch transactions:", error);
     res.status(500).json({ error: "Failed to fetch transactions" }); // ✅ same here
