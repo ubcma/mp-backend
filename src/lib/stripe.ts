@@ -27,7 +27,7 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
 
 
 /*
-This function is called before payment is rendered, allowing user to access frontend buy button and pay 
+This function is called before payment is rendered, allowing user to access frontend buy button and pay through checkout form
 */
 export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) { //using metadata from 
   const intent = await stripe.paymentIntents.create({
