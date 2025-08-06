@@ -4,6 +4,8 @@ import { userProfile } from "../db/schema/userProfile";
 import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
+import { isValidField } from "../lib/utils";
+import { UpdateUserProfileInput } from "../types/user";
 
 // Utility to check for non-empty fields
 function isValidField(value: any): boolean {
@@ -23,7 +25,7 @@ function getFileKeyFromUrl(url: string): string | null {
 // Dynamically import UTApi and delete the old avatar
 async function deleteOldAvatar(oldAvatarUrl: string) {
   if (!oldAvatarUrl?.includes("uploadthing")) return;
-
+  
   const fileKey = getFileKeyFromUrl(oldAvatarUrl);
   if (!fileKey) return;
 
@@ -60,8 +62,8 @@ export const getMe = async (req: Request, res: Response) => {
         role: userProfile.role,
         faculty: userProfile.faculty,
         major: userProfile.major,
-        yearLevel: userProfile.year,
-        avatarUrl: userProfile.avatar,
+        year: userProfile.year,
+        avatar: userProfile.avatar,
         bio: userProfile.bio,
         linkedinUrl: userProfile.linkedinUrl,
         diet: userProfile.diet,
@@ -85,8 +87,8 @@ export const getMe = async (req: Request, res: Response) => {
       role: user.role,
       faculty: user.faculty,
       major: user.major,
-      yearLevel: user.yearLevel,
-      avatarUrl: user.avatarUrl,
+      year: user.year,
+      avatar: user.avatar,
       bio: user.bio,
       linkedinUrl: user.linkedinUrl,
       diet: user.diet,
@@ -99,6 +101,7 @@ export const getMe = async (req: Request, res: Response) => {
   }
 };
 
+
 type UpdateUserProfileInput = {
   name?: string;
   avatar?: string;
@@ -110,7 +113,7 @@ type UpdateUserProfileInput = {
   interests?: string[];
   diet?: string[];
 };
-
+  
 export async function updateUserProfile(
   userId: string,
   data: UpdateUserProfileInput
@@ -139,7 +142,9 @@ export async function updateUserProfile(
         ...(isValidField(data.year) && { year: data.year }),
         ...(isValidField(data.faculty) && { faculty: data.faculty }),
         ...(isValidField(data.major) && { major: data.major }),
-        ...(isValidField(data.linkedinUrl) && { linkedinUrl: data.linkedinUrl }),
+        ...(isValidField(data.linkedinUrl) && {
+          linkedinUrl: data.linkedinUrl,
+        }),
         ...(isValidField(data.interests) && { interests: data.interests }),
         ...(isValidField(data.diet) && { diet: data.diet }),
         onboardingComplete: true,
@@ -169,7 +174,10 @@ export const updateMe = async (req: Request, res: Response) => {
   }
 
   try {
-    const session = await auth.api.getSession({ headers });
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
     if (!session) {
       return res.status(401).json({ error: "Unauthorized" });
     }

@@ -8,7 +8,6 @@ import {
   boolean,
   jsonb,
   primaryKey,
-  numeric,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
@@ -43,7 +42,8 @@ export const event = pgTable("event", {
   description: text("description"),
   imageUrl: text("image_url"),
   slug: text("slug").notNull(),
-  price: numeric("price"),
+  price: integer("price"),
+  isVisible: boolean("is_visible"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),

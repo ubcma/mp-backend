@@ -4,10 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "ts-node-dev src/app.ts",
     "build": "tsc",
-    "start": "node dist/src/app.js"
+    "start": "NODE_ENV=production node dist/src/server.js",
+    "dev": "NODE_ENV=development tsx src/server.ts"
   },
   "keywords": [],
   "author": "",
