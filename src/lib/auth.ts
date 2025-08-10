@@ -18,6 +18,27 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 const isProduction = process.env.NODE_ENV === "production";
+const isVercelPreview = process.env.VERCEL_ENV === "preview";
+const isSecureContext = isProduction || isVercelPreview;
+
+const getAllowedOrigins = () => {
+  const origins = [
+    process.env.FRONTEND_URL!,
+    "https://app.ubcma.ca",
+    "https://preview.ubcma.ca",
+    "http://localhost:3000",
+  ];
+
+  if (process.env.VERCEL_URL) {
+    origins.push(`https://${process.env.VERCEL_URL}`);
+  }
+  
+  if (process.env.VERCEL_BRANCH_URL) {
+    origins.push(`https://${process.env.VERCEL_BRANCH_URL}`);
+  }
+
+  return origins.filter(Boolean);
+};
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -25,14 +46,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  origin: [
-    process.env.FRONTEND_URL!,
-    "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:4000",
-  ],
+  origin: getAllowedOrigins(),
   session: {
     cookieCache: {
       enabled: true,
@@ -49,14 +63,7 @@ export const auth = betterAuth({
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
   }),
-  trustedOrigins: [
-    process.env.FRONTEND_URL!,
-    "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:4000",
-  ],
+  trustedOrigins: getAllowedOrigins(),
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
@@ -77,12 +84,12 @@ export const auth = betterAuth({
     cookiePrefix: "membership-portal",
     crossSubDomainCookies: {
       enabled: isProduction,
-      domain: ".ubcma.ca",
+      domain: isProduction ? ".ubcma.ca" : undefined,
     },
     defaultCookieAttributes: {
-      secure: isProduction,
+      secure: isSecureContext, 
       httpOnly: true,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: "lax", 
       partitioned: isProduction,
     },
   },
