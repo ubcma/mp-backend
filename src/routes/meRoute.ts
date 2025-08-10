@@ -6,5 +6,6 @@ const meRouter = Router();
 
 meRouter.get("/", asyncHandler(getMe));
 meRouter.post("/", asyncHandler(updateMe));
+meRouter.put("/", asyncHandler(updateMe));
 
 export default meRouter;

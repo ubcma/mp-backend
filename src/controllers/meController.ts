@@ -6,25 +6,21 @@ import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import { isValidField } from "../lib/utils";
 import { UpdateUserProfileInput } from "../types/user";
+import { deleteOldFile } from "../lib/uploadthing";
 
 export const getMe = async (req: Request, res: Response) => {
   const headers = new Headers();
-
   if (req.headers.cookie) {
     headers.append("cookie", req.headers.cookie);
   }
 
   try {
-    const session = await auth.api.getSession({
-      headers: headers,
-    });
-
+    const session = await auth.api.getSession({ headers });
     if (!session) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const userId = session.user.id;
-
     const result = await db
       .select({
         userId: users.id,
@@ -51,7 +47,6 @@ export const getMe = async (req: Request, res: Response) => {
     }
 
     const user = result[0];
-
     return res.json({
       userId: String(user.userId),
       name: user.name,
@@ -78,7 +73,21 @@ export async function updateUserProfile(
   data: UpdateUserProfileInput
 ) {
   try {
-    const result = await db
+    let oldAvatarUrl: string | null = null;
+
+    if (data.avatar) {
+      const current = await db
+        .select({ avatar: userProfile.avatar })
+        .from(userProfile)
+        .where(eq(userProfile.userId, userId))
+        .limit(1);
+
+      if (current.length && current[0].avatar) {
+        oldAvatarUrl = current[0].avatar;
+      }
+    }
+
+    const [updated] = await db
       .update(userProfile)
       .set({
         ...(isValidField(data.bio) && { bio: data.bio }),
@@ -97,7 +106,14 @@ export async function updateUserProfile(
       .where(eq(userProfile.userId, userId))
       .returning();
 
-    return result[0];
+    // Delete the old avatar in the background
+    if (oldAvatarUrl && data.avatar && oldAvatarUrl !== data.avatar) {
+      deleteOldFile(oldAvatarUrl).catch((e) =>
+        console.error("Background deletion failed:", e)
+      );
+    }
+
+    return updated;
   } catch (error) {
     console.error("Failed to update user profile:", error);
     throw error;
@@ -106,7 +122,6 @@ export async function updateUserProfile(
 
 export const updateMe = async (req: Request, res: Response) => {
   const headers = new Headers();
-
   if (req.headers.cookie) {
     headers.append("cookie", req.headers.cookie);
   }
@@ -120,10 +135,7 @@ export const updateMe = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const userId = session.user.id;
-
-    const updatedUser = await updateUserProfile(userId, req.body);
-
+    const updatedUser = await updateUserProfile(session.user.id, req.body);
     return res.json(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);

@@ -18,6 +18,31 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 const isProduction = process.env.NODE_ENV === "production";
+const isVercelPreview = process.env.VERCEL_ENV === "preview";
+const isDevelopment = process.env.NODE_ENV === "development";
+const isSecureContext = isProduction || isVercelPreview;
+
+export const getAllowedOrigins = () => {
+  const origins = [
+    process.env.FRONTEND_URL!,
+    "https://app.ubcma.ca",
+    "https://preview.ubcma.ca",
+    "http://localhost:3000",
+  ];
+
+  if (process.env.VERCEL_URL) {
+    origins.push(`https://${process.env.VERCEL_URL}`);
+  }
+
+  if (process.env.VERCEL_BRANCH_URL) {
+    origins.push(`https://${process.env.VERCEL_BRANCH_URL}`);
+  }
+
+  return origins.filter(Boolean);
+};
+
+console.log("Allowed origins:", getAllowedOrigins());
+console.log(isProduction ? "Production mode" : "Development mode");
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -25,14 +50,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  origin: [
-    process.env.FRONTEND_URL!,
-    "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:4000",
-  ],
+  origin: getAllowedOrigins(),
   session: {
     cookieCache: {
       enabled: true,
@@ -43,20 +61,14 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      redirectURI: `${process.env.BETTER_AUTH_URL}/api/auth/callback/google`,
     },
   },
   plugins: [openAPI()],
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
   }),
-  trustedOrigins: [
-    process.env.FRONTEND_URL!,
-    "https://app.ubcma.ca",
-    "https://api.ubcma.ca",
-    "https://membership-portal-ubcmas-projects.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:4000",
-  ],
+  trustedOrigins: getAllowedOrigins(),
   secondaryStorage: {
     get: async (key) => {
       const value = await redis.get(key);
@@ -77,14 +89,20 @@ export const auth = betterAuth({
     cookiePrefix: "membership-portal",
     crossSubDomainCookies: {
       enabled: isProduction,
-      domain: ".ubcma.ca",
+      domain: isProduction ? ".ubcma.ca" : undefined,
     },
     defaultCookieAttributes: {
-      secure: isProduction,
+      secure: isSecureContext,
       httpOnly: true,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: isDevelopment ? "lax" : "none",
       partitioned: isProduction,
     },
+  },
+  rateLimit: {
+    enabled: true,
+    storage: "secondary-storage",
+    window: 60,
+    max: 100,
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {

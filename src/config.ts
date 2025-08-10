@@ -23,6 +23,6 @@ for (const file of envFiles) {
   }
 }
 
-if (!envLoaded && process.env.NODE_ENV !== 'production') {
+if (!envLoaded) {
   console.warn('⚠️ No .env file loaded. Ensure environment variables are set or a .env file exists.');
 }
