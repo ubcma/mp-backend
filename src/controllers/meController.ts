@@ -6,40 +6,7 @@ import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import { isValidField } from "../lib/utils";
 import { UpdateUserProfileInput } from "../types/user";
-
-// Utility to check for non-empty fields
-function isValidField(value: any): boolean {
-  return value !== undefined && value !== null && value !== "";
-}
-
-// Extract the UploadThing file key from its URL
-function getFileKeyFromUrl(url: string): string | null {
-  try {
-    const parts = url.split("/");
-    return parts[parts.length - 1];
-  } catch {
-    return null;
-  }
-}
-
-// Dynamically import UTApi and delete the old avatar
-async function deleteOldAvatar(oldAvatarUrl: string) {
-  if (!oldAvatarUrl?.includes("uploadthing")) return;
-  
-  const fileKey = getFileKeyFromUrl(oldAvatarUrl);
-  if (!fileKey) return;
-
-  try {
-    const { UTApi } = await import("uploadthing/server");
-    // Pass your token from env
-    const utapi = new UTApi({ token: process.env.UPLOADTHING_TOKEN! });
-    await utapi.deleteFiles([fileKey]);
-    console.log("Successfully deleted old avatar:", fileKey);
-  } catch (err) {
-    console.error("Error deleting old avatar:", err);
-    // We swallow errors so user update still succeeds
-  }
-}
+import { deleteOldFile } from "../lib/uploadthing";
 
 export const getMe = async (req: Request, res: Response) => {
   const headers = new Headers();
@@ -101,19 +68,6 @@ export const getMe = async (req: Request, res: Response) => {
   }
 };
 
-
-type UpdateUserProfileInput = {
-  name?: string;
-  avatar?: string;
-  year?: string;
-  bio?: string;
-  faculty?: string;
-  major?: string;
-  linkedinUrl?: string;
-  interests?: string[];
-  diet?: string[];
-};
-  
 export async function updateUserProfile(
   userId: string,
   data: UpdateUserProfileInput
@@ -121,7 +75,6 @@ export async function updateUserProfile(
   try {
     let oldAvatarUrl: string | null = null;
 
-    // If they're changing their avatar, fetch the old one first
     if (data.avatar) {
       const current = await db
         .select({ avatar: userProfile.avatar })
@@ -155,7 +108,7 @@ export async function updateUserProfile(
 
     // Delete the old avatar in the background
     if (oldAvatarUrl && data.avatar && oldAvatarUrl !== data.avatar) {
-      deleteOldAvatar(oldAvatarUrl).catch((e) =>
+      deleteOldFile(oldAvatarUrl).catch((e) =>
         console.error("Background deletion failed:", e)
       );
     }

@@ -11,6 +11,7 @@ import {
   QuestionInput,
   UpdateEventInput,
 } from "../types/event";
+import { deleteOldFile } from "../lib/uploadthing";
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
@@ -26,7 +27,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
         tags: tag.name,
         description: event.description,
         imageUrl: event.imageUrl,
-        isVisible: event.isVisible
+        isVisible: event.isVisible,
       })
       .from(event)
       .leftJoin(eventTag, eq(eventTag.eventId, event.id))
@@ -178,7 +179,6 @@ export const createEvent = async (req: Request, res: Response) => {
 };
 
 export const updateEventById = async (req: Request, res: Response) => {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
@@ -213,6 +213,18 @@ export const updateEventById = async (req: Request, res: Response) => {
 
     const data: UpdateEventInput = req.body;
 
+    const eventToUpdate = await db
+      .select({ imageUrl: event.imageUrl })
+      .from(event)
+      .where(eq(event.id, data.id))
+      .limit(1);
+
+    if (eventToUpdate.length > 0 && eventToUpdate[0].imageUrl) {
+      deleteOldFile(eventToUpdate[0].imageUrl).catch((e) =>
+        console.error("Background deletion failed:", e)
+      );
+    }
+
     const [updatedEvent] = await db
       .update(event)
       .set({
@@ -240,7 +252,6 @@ export const updateEventById = async (req: Request, res: Response) => {
 };
 
 export const deleteEventById = async (req: Request, res: Response) => {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
@@ -275,12 +286,23 @@ export const deleteEventById = async (req: Request, res: Response) => {
 
     const data: DeleteEventInput = req.body;
 
+    const eventToDelete = await db
+      .select({ imageUrl: event.imageUrl })
+      .from(event)
+      .where(eq(event.id, data.id))
+      .limit(1);
+
+    if (eventToDelete.length > 0 && eventToDelete[0].imageUrl) {
+      deleteOldFile(eventToDelete[0].imageUrl).catch((e) =>
+        console.error("Background deletion failed:", e)
+      );
+    }
+
     await db.delete(event).where(eq(event.id, data.id));
 
     return res.json({
-      message: "Successfully deleted event with ID: " + data.id
+      message: "Successfully deleted event with ID: " + data.id,
     });
-
   } catch (error) {
     console.error("Error deleting event:", error);
     return res.status(500).json({ error: "Internal Server Error" });
