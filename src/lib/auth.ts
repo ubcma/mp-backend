@@ -40,6 +40,11 @@ export const getAllowedOrigins = () => {
   return origins.filter(Boolean);
 };
 
+console.log("Allowed origins:", getAllowedOrigins());
+console.log(isProduction ? "Production mode" : "Development mode");
+console.log("Secure context:", isSecureContext);
+console.log("Vercel preview mode:", isVercelPreview);
+
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,
@@ -90,7 +95,7 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       secure: isSecureContext, 
       httpOnly: true,
-      sameSite: isSecureContext ? "none" : "lax", 
+      sameSite: "none",
       partitioned: isProduction,
     },
   },
