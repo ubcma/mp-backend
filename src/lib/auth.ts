@@ -19,6 +19,7 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
 
 const isProduction = process.env.NODE_ENV === "production";
 const isVercelPreview = process.env.VERCEL_ENV === "preview";
+const isDevelopment = process.env.NODE_ENV === "development";
 const isSecureContext = isProduction || isVercelPreview;
 
 export const getAllowedOrigins = () => {
@@ -32,7 +33,7 @@ export const getAllowedOrigins = () => {
   if (process.env.VERCEL_URL) {
     origins.push(`https://${process.env.VERCEL_URL}`);
   }
-  
+
   if (process.env.VERCEL_BRANCH_URL) {
     origins.push(`https://${process.env.VERCEL_BRANCH_URL}`);
   }
@@ -42,8 +43,6 @@ export const getAllowedOrigins = () => {
 
 console.log("Allowed origins:", getAllowedOrigins());
 console.log(isProduction ? "Production mode" : "Development mode");
-console.log("Secure context:", isSecureContext);
-console.log("Vercel preview mode:", isVercelPreview);
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -93,18 +92,18 @@ export const auth = betterAuth({
       domain: isProduction ? ".ubcma.ca" : undefined,
     },
     defaultCookieAttributes: {
-      secure: isSecureContext, 
+      secure: isSecureContext,
       httpOnly: true,
-      sameSite: "none",
+      sameSite: isDevelopment ? "lax" : "none",
       partitioned: isProduction,
     },
   },
-      rateLimit: {
-        enabled: true,
-        storage: "secondary-storage",
-        window: 60, 
-        max: 100,
-    },
+  rateLimit: {
+    enabled: true,
+    storage: "secondary-storage",
+    window: 60,
+    max: 100,
+  },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;
