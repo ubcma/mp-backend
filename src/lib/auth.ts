@@ -21,7 +21,7 @@ const isProduction = process.env.NODE_ENV === "production";
 const isVercelPreview = process.env.VERCEL_ENV === "preview";
 const isSecureContext = isProduction || isVercelPreview;
 
-const getAllowedOrigins = () => {
+export const getAllowedOrigins = () => {
   const origins = [
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
@@ -57,6 +57,7 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      redirectURI: `${process.env.BETTER_AUTH_URL}/api/auth/callback/google`,
     },
   },
   plugins: [openAPI()],
@@ -93,6 +94,12 @@ export const auth = betterAuth({
       partitioned: isProduction,
     },
   },
+      rateLimit: {
+        enabled: true,
+        storage: "secondary-storage",
+        window: 60, 
+        max: 100,
+    },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;
