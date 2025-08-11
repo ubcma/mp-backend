@@ -18,5 +18,3 @@ stripeRouter.post('/create-payment-intent', asyncHandler(handleCreatePaymentInte
 stripeRouter.get('/payment-intent/:userId', handleGetPaymentIntent);
 
 export default stripeRouter;
-
-
