@@ -19,7 +19,6 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
-import { event } from "../db/schema/event";
 
 require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
 
@@ -49,7 +48,7 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
     const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
     const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from the  library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
-    // res.send({clientSecret: paymentIntent?.client_secret}) ?? 
+
     console.log('Client secret:', paymentIntent.client_secret);
 
   } catch (err) {

@@ -3,18 +3,22 @@ import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
 
-import { db } from '../db';
-import { eq } from 'drizzle-orm';
-import { userProfile } from '../db/schema/userProfile';
-import { transaction } from '../db/schema/transaction';
+import { db } from "../db";
+import { eq } from "drizzle-orm";
+import { userProfile } from "../db/schema/userProfile";
+import { transaction } from "../db/schema/transaction";
 
-console.log('Loading Stripe with key:', process.env.STRIPE_SECRET_KEY?.slice(0, 10), '...');
-require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // initialize stripe object to create payment intent, utilize with backend webhook
-  // apiVersion: '2025-06-30.basil', // check api version via stripe dashboard, may not need to specify
+require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  // initialize stripe object to create payment intent, utilize with backend webhook
+  apiVersion: "2025-07-30.basil", // check api version via stripe dashboard
 });
 
-console.log('Loading Stripe with key:', process.env.STRIPE_SECRET_KEY?.slice(0, 10), '...');
+console.log(
+  "Loading Stripe with key:",
+  process.env.STRIPE_SECRET_KEY?.slice(0, 10),
+  "..."
+);
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -27,20 +31,23 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
     console.log("Redis ready");
   });
 
-
-
-export async function createPaymentIntent(purchaseType:string, userId:string, amount:number, currency:string) { //using metadata from 
+export async function createPaymentIntent(
+  purchaseType: string,
+  userId: string,
+  amount: number,
+  currency: string
+) {
+  //using metadata from
   const intent = await stripe.paymentIntents.create({
     amount,
     currency,
-    metadata: { purchaseType, userId }, // purchase type and userid stored here  // purchase type and userid stored here 
-    payment_method_types: ['card'], // Apple Pay routes through 'card', need to check for other automatic methods 
+    metadata: { purchaseType, userId }, // purchase type and userid stored here
+    payment_method_types: ["card"], // Apple Pay routes through 'card', need to check for other automatic methods
     /*
     automatic_payment_methods: { // pool Stripe payment methods 
       enabled: true 
     }
     */
-    
     /*
     automatic_payment_methods: { // pool Stripe payment methods 
       enabled: true 
@@ -50,30 +57,37 @@ export async function createPaymentIntent(purchaseType:string, userId:string, am
   });
 
 
-
-  await redis.set(`pi:${intent.id}`, JSON.stringify({ // IMPORTANT: keep payment id as pid 
-  purchaseType,
-  userId,
-  amount,
-  currency,
-  eventId: null // or optional if passed
-}), 'EX', 3600); // store the intent in redis and make sure that it expires in an hour
-  // use the intent id for future transaction identification from frontend 
-  await redis.set(`user:${userId}:intent`, intent.id, 'EX', 3600); // default expiry 
-  return intent; // return the entire intent 
+  await redis.set(
+    `pi:${intent.id}`,
+    JSON.stringify({
+      // IMPORTANT: keep payment id as pid
+      purchaseType,
+      userId,
+      amount,
+      currency,
+      eventId: null, // or optional if passed
+    }),
+    "EX",
+    3600
+  ); // store the intent in redis and make sure that it expires in an hour
+  // use the intent id for future transaction identification from frontend
+  await redis.set(`user:${userId}:intent`, intent.id, "EX", 3600); // default expiry
+  return intent; // return the entire intent
 }
 
-// in case we need the paymentintent again for a certain user 
+// in case we need the paymentintent again for a certain user
 export const getPaymentIntentForUser = async (userId: string) => {
   const paymentIntentId = await redis.get(`pi:${userId}`);
   if (!paymentIntentId) return null;
 
   return stripe.paymentIntents.retrieve(paymentIntentId);
-  };
+};
 
-
-export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Event {
-  const sig = req.headers['stripe-signature']!; // as string 
+export function verifyStripeWebhook(
+  req: any,
+  endpointSecret: string
+): Stripe.Event {
+  const sig = req.headers["stripe-signature"]!; // as string
   // let event: Stripe.Event
   // try {event = stripe.webhooks.constructEvent(...)} if you want to set a variable (from video)
   return stripe.webhooks.constructEvent(
@@ -82,15 +96,18 @@ export function verifyStripeWebhook(req: any, endpointSecret: string): Stripe.Ev
     sig,
     endpointSecret
   );
-} // simply create  
+} // simply create 
 
 
 /*
 This function is called only after the payment has been successfully charged and the webhook is hit with payment_intent.succeeded from SDK
 */
 export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
+  console.log(`Processing Payment Intent: ${intent.id}`);
+
   const dataStr = await redis.get(`pi:${intent.id}`);
-  if (!dataStr) throw new Error(`Missing metadata for PaymentIntent ${intent.id}`);
+  if (!dataStr)
+    throw new Error(`Missing metadata for PaymentIntent ${intent.id}`);
   const data = JSON.parse(dataStr);
 
   /*
@@ -103,39 +120,39 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   */
 
   // Change user role to Member (if not already)
-  if (data.purchaseType === 'membership') {
+  if (data.purchaseType === "membership") {
     await db
       .update(userProfile)
       .set({
-        role: 'Member',
+        role: "Member",
         updatedAt: new Date(),
       })
       .where(eq(userProfile.userId, data.userId));
-
-    }
+  }
 
   await db.insert(transaction).values({
     userId: data.userId,
     stripe_payment_intent_Id: intent.id,
     purchase_type: data.purchaseType,
-    payment_method_type: intent.payment_method_types?.[0] ?? 'card',
+    payment_method_type: intent.payment_method_types?.[0] ?? "card",
     amount: data.amount.toString(),
     currency: data.currency,
     event_id: data.eventId ?? null,
-    // paid_at: // in stripe schema logic 
+    // paid_at: // in stripe schema logic
     // valid_from: validFrom,
     // valid_until: validUntil,
     paid_at: new Date(),
   });
 
-  
-
   await redis.del(`pi:${intent.id}`);
 }
 
-
 // Utility function to create a price for a product
-export const createPrice = async (productId: string, amount: number, currency: string) => {
+export const createPrice = async (
+  productId: string,
+  amount: number,
+  currency: string
+) => {
   return stripe.prices.create({
     product: productId,
     unit_amount: amount,
@@ -150,7 +167,6 @@ export const createProduct = async (name: string, description: string) => {
     description,
   });
 };
-
 
 // Utility function to retrieve customer
 export const getCustomer = async (customerId: string) => {
@@ -171,7 +187,6 @@ export const createRefund = async (paymentIntentId: string) => {
 
 export default stripe;
 
-
 /*
 // create a paymentmethod for the customer 
 export const createPaymentMethod = async (type: string, card: Stripe.PaymentMethodCreateParams.Card1) => {
@@ -182,9 +197,7 @@ export const createPaymentMethod = async (type: string, card: Stripe.PaymentMeth
 };
 */
 
-
-
-// ARCHIVED CODE 
+// ARCHIVED CODE
 /*
 wrap Redis and Drizzle integration
 contain Stripe SDK logic 
