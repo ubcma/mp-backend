@@ -34,7 +34,7 @@ export const getAllTransactions = async (req: Request, res: Response) => {
         amount: transaction.amount,
         currency: transaction.currency,
         paymentMethod: transaction.payment_method_type,
-        paymentIntentId: transaction.stripe_payment_intent_Id,
+        paymentIntentId: transaction.stripe_payment_intent_id,
         eventId: transaction.event_id,
         paidAt: transaction.paid_at,
       })

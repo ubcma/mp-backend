@@ -41,9 +41,6 @@ export const getAllowedOrigins = () => {
   return origins.filter(Boolean);
 };
 
-console.log("Allowed origins:", getAllowedOrigins());
-console.log(isProduction ? "Production mode" : "Development mode");
-
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL!,

@@ -1,6 +1,6 @@
 // src/routes/stripe.routes.ts
 import { Router } from 'express';
-import {
+import handleVerifyPayment, {
   handleStripeWebhook, // app.ts handles the webhook directly 
   handleCreatePaymentIntent,
   handleGetPaymentIntent,
@@ -16,5 +16,6 @@ const stripeRouter = Router();
 // async control function returns the client secret to return to frontend 
 stripeRouter.post('/create-payment-intent', asyncHandler(handleCreatePaymentIntent));
 stripeRouter.get('/payment-intent/:userId', handleGetPaymentIntent);
+stripeRouter.get('/verify-payment', handleVerifyPayment);
 
 export default stripeRouter;

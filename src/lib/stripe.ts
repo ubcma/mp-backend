@@ -7,6 +7,7 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { userProfile } from "../db/schema/userProfile";
 import { transaction } from "../db/schema/transaction";
+import { PAYMENT_EXPIRY } from "./constants";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -38,27 +39,28 @@ export async function createPaymentIntent(
   currency: string
 ) {
   //using metadata from
-  const intent = await stripe.paymentIntents.create({
+
+  const user = await db
+    .select()
+    .from(userProfile)
+    .where(eq(userProfile.userId, userId))
+    .then((users) => users[0]);
+
+  const customer = await getOrCreateCustomer(user.email, user.name);
+
+  const paymentIntent = await stripe.paymentIntents.create({
     amount,
     currency,
-    metadata: { purchaseType, userId }, // purchase type and userid stored here
-    payment_method_types: ["card"], // Apple Pay routes through 'card', need to check for other automatic methods
-    /*
-    automatic_payment_methods: { // pool Stripe payment methods 
-      enabled: true 
-    }
-    */
-    /*
-    automatic_payment_methods: { // pool Stripe payment methods 
-      enabled: true 
-    }
-    */
+    customer: customer.id,
+    metadata: { purchaseType, userId, email: user.email},
+    payment_method_types: ["card"],
     
+    // automatic_payment_methods: { enabled: true },
   });
 
 
   await redis.set(
-    `pi:${intent.id}`,
+    `pi:${paymentIntent.id}`,
     JSON.stringify({
       // IMPORTANT: keep payment id as pid
       purchaseType,
@@ -68,11 +70,11 @@ export async function createPaymentIntent(
       eventId: null, // or optional if passed
     }),
     "EX",
-    3600
+    PAYMENT_EXPIRY
   ); // store the intent in redis and make sure that it expires in an hour
   // use the intent id for future transaction identification from frontend
-  await redis.set(`user:${userId}:intent`, intent.id, "EX", 3600); // default expiry
-  return intent; // return the entire intent
+  await redis.set(`user:${userId}:intent`, paymentIntent.id, "EX", PAYMENT_EXPIRY); // default expiry
+  return paymentIntent; // return the entire intent
 }
 
 // in case we need the paymentintent again for a certain user
@@ -132,7 +134,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
 
   await db.insert(transaction).values({
     userId: data.userId,
-    stripe_payment_intent_Id: intent.id,
+    stripe_payment_intent_id: intent.id,
     purchase_type: data.purchaseType,
     payment_method_type: intent.payment_method_types?.[0] ?? "card",
     amount: data.amount.toString(),
@@ -169,9 +171,21 @@ export const createProduct = async (name: string, description: string) => {
 };
 
 // Utility function to retrieve customer
-export const getCustomer = async (customerId: string) => {
-  return stripe.customers.retrieve(customerId);
-};
+async function getOrCreateCustomer(email: string, name?: string) {
+  const existingCustomers = await stripe.customers.list({
+    email,
+    limit: 1
+  });
+
+  if (existingCustomers.data.length > 0) {
+    return existingCustomers.data[0];
+  }
+
+  return await stripe.customers.create({
+    email,
+    name
+  });
+}
 
 // Utility function to list all products
 export const listProducts = async () => {

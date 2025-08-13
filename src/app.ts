@@ -12,18 +12,25 @@ import stripeRouter from "./routes/stripeRoutes";
 import { handleStripeWebhook } from "./controllers/stripeController";
 import userRouter from "./routes/userRoutes";
 import validateEmailRouter from "./routes/validateEmailRoutes";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const app = express();
 
-const limiter = rateLimit({
-	windowMs: 10 * 60 * 1000,
-	max: 100,
-  limit: 100,
-  handler: (req, res) => {
-    res.status(429).send({ error: 'Too many requests, please try again later' });
-  }
-})
+
+if (process.env.NODE_ENV !== "development") {
+  app.set("trust proxy", 1); // trust first proxy for rate limiting
+
+  const limiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 100,
+    standardHeaders: 'draft-8',
+    keyGenerator: (req) => ipKeyGenerator(req?.user?.id ?? req.ip ?? "unknown-ip"),
+    statusCode: 429,
+    message: "Too many requests, please try again later",
+  });
+
+  app.use(limiter);
+}
 
 app.use(
   cors({
@@ -37,8 +44,6 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(limiter);
 
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(cookieParser());
