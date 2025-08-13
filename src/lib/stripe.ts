@@ -53,9 +53,8 @@ export async function createPaymentIntent(
     currency,
     customer: customer.id,
     metadata: { purchaseType, userId, email: user.email},
-    payment_method_types: ["card"],
-    
-    // automatic_payment_methods: { enabled: true },
+    // payment_method_types: ["card"],
+    automatic_payment_methods: { enabled: true },
   });
 
 
