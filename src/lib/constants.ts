@@ -11,3 +11,5 @@ export const QUESTION_TYPES = [
     "YesNo",
     "FileUpload",
   ] as const;
+
+export const PAYMENT_EXPIRY = 3600; // 10 minutes in seconds

@@ -9,7 +9,7 @@
 // we should use helpers from lib/stripe.ts to interact with stripe sdk and db, keep it sanitary here (all raw logic should be in library folder)
 
 import { Request, Response } from "express";
-import {verifyStripeWebhook, 
+import stripe, {verifyStripeWebhook, 
         createPaymentIntent, 
         getPaymentIntentForUser,
         processPaymentIntent} from "../lib/stripe"
@@ -19,6 +19,7 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
+import { transaction } from "../db/schema/transaction";
 
 require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
 
@@ -65,7 +66,9 @@ export const handleGetPaymentIntent = async (req: Request, res: Response) => {
       res.status(404).json({ error: 'Payment Intent not found' });
       return; // need to return because async 
     }
+
     res.json({ paymentIntent });
+
   } catch (error) {
     console.error("Error retrieving PaymentIntent:", error);
     res.status(500).json({ error: "Failed to retrieve PaymentIntent" });
@@ -111,6 +114,55 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   }
 };
 
+export default async function handleVerifyPayment(req: Request, res: Response) {
+
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append('cookie', req.headers.cookie);
+  }
+
+  try {
+
+    console.log("here");
+
+    const { payment_intent } = req.query as { payment_intent: string };
+    const session = await auth.api.getSession({ headers });
+
+    const user = session?.user;
+    if (!user?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!payment_intent) {
+      return res.status(400).json({ verified: false });
+    }
+
+    const txn = await db.query.transaction.findFirst({
+      where: eq(transaction.stripe_payment_intent_id, payment_intent) && eq(transaction.userId, user.id)
+    });
+
+    if (!txn) {
+      return res.json({ verified: false, reason: 'Not recorded in DB yet' });
+    }
+
+    const pi = await stripe.paymentIntents.retrieve(payment_intent);
+
+    console.log(pi);
+
+    if (pi.status === 'succeeded' && pi.metadata.userId === user.id) {
+      return res.json({ verified: true, paymentIntent: pi });
+    } else {
+      return res.json({ verified: false, paymentIntent: pi });
+    }
+
+  } catch (err) {
+    console.error("Error verifying PaymentIntent:", err);
+    res.status(500).json({ error: 'Failed to verify PaymentIntent' });
+  }
+
+}
+
 /*
 export const handleCreatePaymentMethod = async (req: Request, res: Response) => {
   try {
@@ -124,56 +176,56 @@ export const handleCreatePaymentMethod = async (req: Request, res: Response) => 
 };
 */
 
-    /*
+/*
 
-    LIBRARY LOGIC 
-    - If `payment_intent.succeeded`, fetch metadata from Redis
-    - Insert into DB accordingly (`membership` or `event_signup`)
-    - Remove Redis entry
-    /*
+LIBRARY LOGIC 
+- If `payment_intent.succeeded`, fetch metadata from Redis
+- Insert into DB accordingly (`membership` or `event_signup`)
+- Remove Redis entry
+/*
 
 // src/controllers/stripeController.ts
 import { Request, Response } from "express";
 import { createCheckoutSession, verifyStripeWebhook } from "../lib/stripe";
 
 export const handleCreateCheckoutSession = async (req: Request, res: Response) => {
-  const { userId, eventId, formResponses } = req.body;
+const { userId, eventId, formResponses } = req.body;
 
-  try {
-    const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
-    return res.status(200).json({ url: sessionUrl });
-  } catch (err) {
-    console.error("Error creating Stripe session:", err);
-    return res.status(500).json({ error: "Failed to create checkout session" });
-  }
+try {
+const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
+return res.status(200).json({ url: sessionUrl });
+} catch (err) {
+console.error("Error creating Stripe session:", err);
+return res.status(500).json({ error: "Failed to create checkout session" });
+}
 };
 
 export const handleStripeWebhook = async (req: Request, res: Response) => {
-  try {
-    const event = verifyStripeWebhook(req);
+try {
+const event = verifyStripeWebhook(req);
 
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object;
-      // TODO: Pull form data from Redis and update DB (transactions.ts, userProfile.ts)
-      console.log("Payment complete:", session.id);
-    }
+if (event.type === "checkout.session.completed") {
+  const session = event.data.object;
+  // TODO: Pull form data from Redis and update DB (transactions.ts, userProfile.ts)
+  console.log("Payment complete:", session.id);
+}
 
-    res.status(200).json({ received: true });
-  } catch (err) {
-    console.error(" Webhook error:", err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+res.status(200).json({ received: true });
+} catch (err) {
+console.error(" Webhook error:", err);
+return res.status(400).send(`Webhook Error: ${err.message}`);
+}
 };
 
 export const handleCreateCheckoutSession = async (req: Request, res: Response) => {
-  const { userId, eventId, formResponses } = req.body;
-  try {
-    const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
-    return res.status(200).json({ url: sessionUrl });
-  } catch (err) {
-    console.error("Error creating Stripe session:", err);
-    return res.status(500).json({ error: "Failed to create checkout session" });
-  }
+const { userId, eventId, formResponses } = req.body;
+try {
+const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
+return res.status(200).json({ url: sessionUrl });
+} catch (err) {
+console.error("Error creating Stripe session:", err);
+return res.status(500).json({ error: "Failed to create checkout session" });
 }
-  */
+}
+*/
 

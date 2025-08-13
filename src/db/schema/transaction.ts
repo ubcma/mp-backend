@@ -7,7 +7,7 @@ export const transaction = pgTable('transaction', {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }), // do we want to delete user transactions if user is deleted? 
-  stripe_payment_intent_Id: text('stripe_payment_intent_id').notNull().unique(), // insetad of checkout use the paymentIntent object from pid via redis 
+  stripe_payment_intent_id: text('stripe_payment_intent_id').notNull().unique(), // insetad of checkout use the paymentIntent object from pid via redis 
   purchase_type: text('purchase_type').notNull(),  // 'membership' or 'event'
   payment_method_type: text('payment_method_type'), // e.g., 'card' 
   amount: text('amount').notNull(),
