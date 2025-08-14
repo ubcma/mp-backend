@@ -11,7 +11,7 @@ import {
 import { users } from "./auth";
 import { sql } from "drizzle-orm";
 
-export const userRoleEnum = pgEnum("user_role", ["Guest", "Member", "Admin"]);
+export const userRoleEnum = pgEnum("user_role", ["Guest", "Basic", "Member", "Admin"]); // add userRole Basic to userRole based on updated user types 
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 
