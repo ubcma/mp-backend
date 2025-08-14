@@ -8,24 +8,19 @@
 
 // we should use helpers from lib/stripe.ts to interact with stripe sdk and db, keep it sanitary here (all raw logic should be in library folder)
 
-import { Request, Response } from "express";
+import { Request, Response, RequestHandler } from "express";
 import stripe, {verifyStripeWebhook, 
         createPaymentIntent, 
         getPaymentIntentForUser,
         processPaymentIntent} from "../lib/stripe"
 import { db } from "../db";
-import { userProfile } from "../db/schema/userProfile";
 import { eq } from "drizzle-orm";
-import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
 import { transaction } from "../db/schema/transaction";
 
-require('dotenv').config({ path: ['.env.development.local', '.env'] }) // changed to accept .env.development.local
+require('dotenv').config({ path: ['.env.development.local', '.env'] })
 
-/*
-Create the payment intent via stripe sdk in stripe.ts 
-*/
 /*
 Create the payment intent via stripe sdk in stripe.ts 
 */
@@ -91,7 +86,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     switch (event.type) { // if valid Stripe Event and event is paymentintent success 
       case 'payment_intent.succeeded': {
         const intent = event.data.object as Stripe.PaymentIntent;
-        console.log(` PaymentIntent succeeded: ${intent.id}`);
+        console.log(`PaymentIntent succeeded: ${intent.id}`);
         await processPaymentIntent(intent); // process: insert into db, clear redis cache
         break;
       }
@@ -114,7 +109,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   }
 };
 
-export default async function handleVerifyPayment(req: Request, res: Response) {
+export async function handleVerifyPayment(req: Request, res: Response) {
 
   const headers = new Headers();
 
@@ -162,70 +157,3 @@ export default async function handleVerifyPayment(req: Request, res: Response) {
   }
 
 }
-
-/*
-export const handleCreatePaymentMethod = async (req: Request, res: Response) => {
-  try {
-    const { type, card } = req.body;
-    const paymentMethod = await createPaymentMethod(type, card);
-    res.json({ paymentMethod });
-  } catch (error) {
-    console.error("Error creating PaymentMethod:", error);
-    res.status(500).json({ error: "Failed to create PaymentMethod" });
-  }
-};
-*/
-
-/*
-
-LIBRARY LOGIC 
-- If `payment_intent.succeeded`, fetch metadata from Redis
-- Insert into DB accordingly (`membership` or `event_signup`)
-- Remove Redis entry
-/*
-
-// src/controllers/stripeController.ts
-import { Request, Response } from "express";
-import { createCheckoutSession, verifyStripeWebhook } from "../lib/stripe";
-
-export const handleCreateCheckoutSession = async (req: Request, res: Response) => {
-const { userId, eventId, formResponses } = req.body;
-
-try {
-const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
-return res.status(200).json({ url: sessionUrl });
-} catch (err) {
-console.error("Error creating Stripe session:", err);
-return res.status(500).json({ error: "Failed to create checkout session" });
-}
-};
-
-export const handleStripeWebhook = async (req: Request, res: Response) => {
-try {
-const event = verifyStripeWebhook(req);
-
-if (event.type === "checkout.session.completed") {
-  const session = event.data.object;
-  // TODO: Pull form data from Redis and update DB (transactions.ts, userProfile.ts)
-  console.log("Payment complete:", session.id);
-}
-
-res.status(200).json({ received: true });
-} catch (err) {
-console.error(" Webhook error:", err);
-return res.status(400).send(`Webhook Error: ${err.message}`);
-}
-};
-
-export const handleCreateCheckoutSession = async (req: Request, res: Response) => {
-const { userId, eventId, formResponses } = req.body;
-try {
-const sessionUrl = await createCheckoutSession(userId, eventId, formResponses);
-return res.status(200).json({ url: sessionUrl });
-} catch (err) {
-console.error("Error creating Stripe session:", err);
-return res.status(500).json({ error: "Failed to create checkout session" });
-}
-}
-*/
-
