@@ -65,7 +65,7 @@ export const eventTag = pgTable(
   (table) => [primaryKey({ columns: [table.eventId, table.tagId] })]
 );
 
-export const eventSignup = pgTable("event_signup", {
+export const eventSignup = pgTable("event_registration", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull()
   .default(sql`DEFAULT`),
   userId: text("user_id")
@@ -106,7 +106,7 @@ export const question = pgTable("question", {
     .default(sql`now()`),
 });
 
-export const eventSignupResponse = pgTable("event_signup_response", {
+export const eventSignupResponse = pgTable("event_registration_response", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull()
   .default(sql`DEFAULT`),
   signupId: bigint("signup_id", { mode: "number" })
