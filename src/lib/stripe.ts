@@ -2,12 +2,14 @@
 import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
-
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { userProfile } from "../db/schema/userProfile";
 import { transaction } from "../db/schema/transaction";
+import { event as eventsTable } from "../db/schema/event"; 
 import { PAYMENT_EXPIRY } from "./constants";
+import { MEMBERSHIP_PRICE  } from "./constants";
+import { eventSignup } from "../db/schema/event";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -32,48 +34,96 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
     console.log("Redis ready");
   });
 
+
+const httpError = (status: number, code: string, message?: string) =>
+  Object.assign(new Error(message ?? code), { status, code });
+
 export async function createPaymentIntent(
-  purchaseType: string,
+  purchaseType: "membership" | "event",
   userId: string,
   amount: number,
-  currency: string
-) {
-  //using metadata from
+  currency: string,
+  eventId?: number            
+) {                           
 
-  const user = await db
+  const [user] = await db
     .select()
     .from(userProfile)
     .where(eq(userProfile.userId, userId))
-    .then((users) => users[0]);
+    .limit(1);
+  if (!user) throw httpError(404, "user_not_found");
 
   const customer = await getOrCreateCustomer(user.email, user.name);
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount,
-    currency,
-    customer: customer.id,
-    metadata: { purchaseType, userId, email: user.email},
-    // payment_method_types: ["card"],
-    automatic_payment_methods: { enabled: true },
-  });
 
+  let finalCurrency = currency || "cad";
+  const meta: Record<string, string> = {
+    purchaseType,
+    userId,
+    email: user.email,
+  };
 
+  let amountInCents = MEMBERSHIP_PRICE // dummy amount 
+  if (purchaseType === "event") {
+    if (eventId == null) throw httpError(400, "missing_event_id");
+
+    const [evt] = await db
+      .select()
+      .from(eventsTable)
+      .where(eq(eventsTable.id, eventId))
+      .limit(1);
+    
+
+    if (!evt) throw httpError(404, "event_not_found");
+
+    // add capacity restraints here 
+
+    if (evt.price == null) throw httpError(409, "event_price_missing");
+
+    
+    amountInCents = Math.round(Number(evt.price) * 100);
+    finalCurrency = "cad"; 
+    meta.eventId = String(eventId); //
+  } else if (purchaseType === "membership") {
+    if (user.role === "Member") throw httpError(409, "already_member");
+    amountInCents = Math.round(
+    Number(process.env.MEMBERSHIP_PRICE_CENTS ?? 20) * 100
+    );
+    finalCurrency = "cad";
+  } else {
+    throw httpError(400, "bad_purchase_type");
+  }
+
+  let paymentIntent: Stripe.PaymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: finalCurrency,
+      customer: customer.id,
+      metadata: meta,
+      automatic_payment_methods: { enabled: true },
+    });
+  } catch (e: any) {
+    console.error("[paymentIntents.create] error", e?.type, e?.code, e?.message);
+    throw e;
+  }
+
+  // persist correct eventId or null if not 
   await redis.set(
     `pi:${paymentIntent.id}`,
     JSON.stringify({
-      // IMPORTANT: keep payment id as pid
       purchaseType,
       userId,
-      amount,
-      currency,
-      eventId: null, // or optional if passed
+      amount: amountInCents,
+      currency: finalCurrency,
+      eventId: eventId ?? null,
     }),
     "EX",
     PAYMENT_EXPIRY
-  ); // store the intent in redis and make sure that it expires in an hour
-  // use the intent id for future transaction identification from frontend
-  await redis.set(`user:${userId}:intent`, paymentIntent.id, "EX", PAYMENT_EXPIRY); // default expiry
-  return paymentIntent; // return the entire intent
+  );
+  await redis.set(`user:${userId}:intent`, paymentIntent.id, "EX", PAYMENT_EXPIRY);
+
+  return paymentIntent;
 }
 
 // in case we need the paymentintent again for a certain user
@@ -97,28 +147,18 @@ export function verifyStripeWebhook(
     sig,
     endpointSecret
   );
-} // simply create 
-
+} 
 
 /*
 This function is called only after the payment has been successfully charged and the webhook is hit with payment_intent.succeeded from SDK
 */
 export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   console.log(`Processing Payment Intent: ${intent.id}`);
-
   const dataStr = await redis.get(`pi:${intent.id}`);
   if (!dataStr)
     throw new Error(`Missing metadata for PaymentIntent ${intent.id}`);
   const data = JSON.parse(dataStr);
 
-  /*
-  const now = new Date(intent.created * 1000);
-  const validFrom = now;
-  const validUntil =
-    data.purchaseType === 'membership'
-      ? new Date(now.setMonth(now.getMonth() + 12))
-      : new Date(data.eventEnd || now);
-  */
 
   // Change user role to Member (if not already)
   if (data.purchaseType === "membership") {
@@ -129,6 +169,17 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
         updatedAt: new Date(),
       })
       .where(eq(userProfile.userId, data.userId));
+    console.log('Updated Member Profile')
+  }
+
+  //Insert into eventSignup 
+  if (data.purchaseType === "event" && data.eventId) {
+    await db.insert(eventSignup).values({
+      userId: data.userId,
+      eventId: data.eventId,
+      stripeTransactionId: intent.id,
+    });
+    console.log('Inserted into Event Registration Table')
   }
 
   await db.insert(transaction).values({
@@ -139,12 +190,10 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     amount: data.amount.toString(),
     currency: data.currency,
     event_id: data.eventId ?? null,
-    // paid_at: // in stripe schema logic
-    // valid_from: validFrom,
-    // valid_until: validUntil,
     paid_at: new Date(),
+    status: 'succeeded'
   });
-
+  console.log('Inserted into Transaction Table')
   await redis.del(`pi:${intent.id}`);
 }
 
@@ -200,68 +249,3 @@ export const createRefund = async (paymentIntentId: string) => {
 
 export default stripe;
 
-/*
-// create a paymentmethod for the customer 
-export const createPaymentMethod = async (type: string, card: Stripe.PaymentMethodCreateParams.Card1) => {
-  return stripe.paymentMethods.create({
-    type,
-    card,
-  });
-};
-*/
-
-// ARCHIVED CODE
-/*
-wrap Redis and Drizzle integration
-contain Stripe SDK logic 
-
-create checkout sessions
-verify webhooks
-save payment data 
-
-
-export async function createCheckoutSession(purchaseType, userId, eventId?, formResponses?) {
-  const lineItem = purchaseType === "membership"
-      ? { price: process.env.MEMBERSHIP_PRICE_ID, quantity: 1 }
-      : { amount: 'event price', currency: "usd", name: "Event Ticket", quantity: 1 };
-
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    mode: "payment",
-    line_items: [lineItem],
-    success_url: `${process.env.FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.FRONTEND_URL}/cancel`,
-    metadata: { purchaseType, userId, eventId },
-  });
-
-    await redis.set(`form:${session.id}`, JSON.stringify({ purchaseType, userId, eventId, formResponses }));
-  return session;
-}
-
-export async function createCheckoutSession(userId: string, eventId: string, formResponses: any) {
-
-  const session = await stripe.checkout.sessions.create({
-    ui_mode: 'embedded',
-    payment_method_types: ["card"],
-    mode: "payment",
-    line_items: [
-      {
-        price_data: {
-          currency: "cad",
-          product_data: { name: "UBCMA Membership" }, // change to purchase.type eventually 
-          unit_amount: 2,
-        },
-        quantity: 1,
-      },
-    ],
-    success_url: `${process.env.FRONTEND_URL}/success`,
-    cancel_url: `${process.env.FRONTEND_URL}/cancel`, // DO WE NEED CHECKOUT ID HERE? 
-    metadata: { userId, eventId },
-  }); // create the checkout session here (raw logic) 
-  // do we need session id in the url? 
-
-  await redis.set(`form:${session.id}`, JSON.stringify({ userId, eventId, formResponses })); // redis only after 
-  return session.url!; // need to return clien tsecret? 
-}
-
-*/

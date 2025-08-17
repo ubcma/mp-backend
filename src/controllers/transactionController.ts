@@ -37,6 +37,7 @@ export const getAllTransactions = async (req: Request, res: Response) => {
         paymentIntentId: transaction.stripe_payment_intent_id,
         eventId: transaction.event_id,
         paidAt: transaction.paid_at,
+        status: transaction.status,
       })
       .from(transaction)
       .leftJoin(userProfile, eq(transaction.userId, userProfile.userId));

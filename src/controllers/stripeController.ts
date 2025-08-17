@@ -41,8 +41,16 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
 
     const userId = user.id;
 
-    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
-    const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from the  library
+    const { purchaseType, amount, currency = 'cad', eventId } = req.body;// pass the request body into the helper function for creation of paymentintent
+    const paymentIntent = await createPaymentIntent(
+      purchaseType as 'membership' | 'event',
+      userId,
+      amount,     // ignored for events
+      currency,
+      eventId     
+    );
+
+ // taken from the  library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
 
     console.log('Client secret:', paymentIntent.client_secret);
@@ -76,6 +84,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   try {
     event = verifyStripeWebhook(req, process.env.STRIPE_WEBHOOK_SECRET!); // retrieve Stripe Event object instantiated and returned if the stripe signature and headers were verified
     console.log("Stripe webhook hit");
+
   } catch (err) {
     console.error('Webhook signature validation failed:', err);
     res.status(400).send('Webhook signature failed');
@@ -89,6 +98,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         console.log(`PaymentIntent succeeded: ${intent.id}`);
         await processPaymentIntent(intent); // process: insert into db, clear redis cache
         break;
+      }
+
+      case 'payment_intent.created': {
+        console.log('webhook senses payment intent creation')
       }
 
       // if Stripe Event is paymentintent failed 
@@ -110,7 +123,6 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 };
 
 export async function handleVerifyPayment(req: Request, res: Response) {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
@@ -136,6 +148,7 @@ export async function handleVerifyPayment(req: Request, res: Response) {
     const txn = await db.query.transaction.findFirst({
       where: eq(transaction.stripe_payment_intent_id, payment_intent) && eq(transaction.userId, user.id)
     });
+    console.log('transaction', txn )
 
     if (!txn) {
       return res.json({ verified: false, reason: 'Not recorded in DB yet' });
