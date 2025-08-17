@@ -16,7 +16,6 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const app = express();
 
-
 if (process.env.NODE_ENV !== "development") {
   app.set("trust proxy", 1); // trust first proxy for rate limiting
 

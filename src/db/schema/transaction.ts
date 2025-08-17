@@ -14,5 +14,6 @@ export const transaction = pgTable('transaction', {
   currency: text('currency').notNull(),
   event_id: text('event_id'),
   paid_at: timestamp('paid_at').notNull().defaultNow(),
+  status: text("status").notNull().default("pending"), 
 });
 
