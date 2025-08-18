@@ -9,7 +9,7 @@ import { transaction } from "../db/schema/transaction";
 import { event as eventsTable } from "../db/schema/event"; 
 import { PAYMENT_EXPIRY } from "./constants";
 import { MEMBERSHIP_PRICE  } from "./constants";
-import { eventSignup } from "../db/schema/event";
+import { eventRegistration } from "../db/schema/event";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -172,9 +172,9 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     console.log('Updated Member Profile')
   }
 
-  //Insert into eventSignup 
+  //Insert into eventRegistration 
   if (data.purchaseType === "event" && data.eventId) {
-    await db.insert(eventSignup).values({
+    await db.insert(eventRegistration).values({
       userId: data.userId,
       eventId: data.eventId,
       stripeTransactionId: intent.id,

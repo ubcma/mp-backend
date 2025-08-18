@@ -4,7 +4,8 @@ import { eq, and, inArray } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { userProfile } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
-import { event, eventSignup, eventSignupResponse, question } from "../db/schema/event";
+import { event, eventRegistration, eventRegistrationResponse, question } from "../db/schema/event";
+import { validateAdmin } from "../lib/validateSession";
 
 export const getEventRegistrations = async (req: Request, res: Response) => {
   const { id: eventId } = req.params;
@@ -25,21 +26,7 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    // Check if user is admin
-    const [user] = await db
-      .select({
-        userRole: userProfile.role,
-      })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const userRole = user?.userRole;
-
-    if (userRole !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
+    validateAdmin(userId);
 
     // Verify event exists
     const [eventExists] = await db
@@ -55,11 +42,12 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
     // Get all registrations for the event with user details
     const registrations = await db
       .select({
-        id: eventSignup.id,
-        userId: eventSignup.userId,
-        eventId: eventSignup.eventId,
-        stripeTransactionId: eventSignup.stripeTransactionId,
-        registeredAt: eventSignup.createdAt,
+        id: eventRegistration.id,
+        userId: eventRegistration.userId,
+        status: eventRegistration.status,
+        eventId: eventRegistration.eventId,
+        stripeTransactionId: eventRegistration.stripeTransactionId,
+        registeredAt: eventRegistration.createdAt,
         // User details
         userEmail: users.email,
         userName: users.name,
@@ -69,10 +57,10 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
         year: userProfile.year,
         faculty: userProfile.faculty,
       })
-      .from(eventSignup)
-      .leftJoin(users, eq(eventSignup.userId, users.id))
+      .from(eventRegistration)
+      .leftJoin(users, eq(eventRegistration.userId, users.id))
       .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(eventSignup.eventId, parseInt(eventId)));
+      .where(eq(eventRegistration.eventId, parseInt(eventId)));
 
     // Get all questions for this event
     const eventQuestions = await db
@@ -85,15 +73,15 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
     const signupIds = registrations.map(reg => reg.id);
     const responses = signupIds.length > 0 ? await db
       .select({
-        signupId: eventSignupResponse.signupId,
-        questionId: eventSignupResponse.questionId,
-        response: eventSignupResponse.response,
+        signupId: eventRegistrationResponse.signupId,
+        questionId: eventRegistrationResponse.questionId,
+        response: eventRegistrationResponse.response,
         questionLabel: question.label,
         questionType: question.type,
       })
-      .from(eventSignupResponse)
-      .leftJoin(question, eq(eventSignupResponse.questionId, question.id))
-      .where(inArray(eventSignupResponse.signupId, signupIds)) : [];
+      .from(eventRegistrationResponse)
+      .leftJoin(question, eq(eventRegistrationResponse.questionId, question.id))
+      .where(inArray(eventRegistrationResponse.signupId, signupIds)) : [];
 
     // Structure the data with responses grouped by registration
     const registrationsWithResponses = registrations.map(registration => {
@@ -155,11 +143,11 @@ export const createRegistration = async (req: Request, res: Response) => {
     // Check if user is already registered for this event
     const [existingRegistration] = await db
       .select()
-      .from(eventSignup)
+      .from(eventRegistration)
       .where(
         and(
-          eq(eventSignup.eventId, parseInt(eventId)),
-          eq(eventSignup.userId, userId)
+          eq(eventRegistration.eventId, parseInt(eventId)),
+          eq(eventRegistration.userId, userId)
         )
       )
       .limit(1);
@@ -172,7 +160,7 @@ export const createRegistration = async (req: Request, res: Response) => {
 
     // Create the signup
     const [newSignup] = await db
-      .insert(eventSignup)
+      .insert(eventRegistration)
       .values({
         userId: userId,
         eventId: parseInt(eventId),
@@ -193,7 +181,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       }));
 
       if (responseValues.length > 0) {
-        await db.insert(eventSignupResponse).values(responseValues);
+        await db.insert(eventRegistrationResponse).values(responseValues);
       }
     }
 
@@ -241,11 +229,11 @@ export const getRegistrationById = async (req: Request, res: Response) => {
     // Get the registration with user details
     const [registrationData] = await db
       .select({
-        id: eventSignup.id,
-        userId: eventSignup.userId,
-        eventId: eventSignup.eventId,
-        stripeTransactionId: eventSignup.stripeTransactionId,
-        registeredAt: eventSignup.createdAt,
+        id: eventRegistration.id,
+        userId: eventRegistration.userId,
+        eventId: eventRegistration.eventId,
+        stripeTransactionId: eventRegistration.stripeTransactionId,
+        registeredAt: eventRegistration.createdAt,
         // User details
         userEmail: users.email,
         userName: users.name,
@@ -255,13 +243,13 @@ export const getRegistrationById = async (req: Request, res: Response) => {
         year: userProfile.year,
         faculty: userProfile.faculty,
       })
-      .from(eventSignup)
-      .leftJoin(users, eq(eventSignup.userId, users.id))
+      .from(eventRegistration)
+      .leftJoin(users, eq(eventRegistration.userId, users.id))
       .leftJoin(userProfile, eq(users.id, userProfile.userId))
       .where(
         and(
-          eq(eventSignup.id, parseInt(registrationId)),
-          eq(eventSignup.eventId, parseInt(eventId))
+          eq(eventRegistration.id, parseInt(registrationId)),
+          eq(eventRegistration.eventId, parseInt(eventId))
         )
       )
       .limit(1);
@@ -278,14 +266,14 @@ export const getRegistrationById = async (req: Request, res: Response) => {
     // Get the responses for this registration
     const responses = await db
       .select({
-        questionId: eventSignupResponse.questionId,
-        response: eventSignupResponse.response,
+        questionId: eventRegistrationResponse.questionId,
+        response: eventRegistrationResponse.response,
         questionLabel: question.label,
         questionType: question.type,
       })
-      .from(eventSignupResponse)
-      .leftJoin(question, eq(eventSignupResponse.questionId, question.id))
-      .where(eq(eventSignupResponse.signupId, parseInt(registrationId)));
+      .from(eventRegistrationResponse)
+      .leftJoin(question, eq(eventRegistrationResponse.questionId, question.id))
+      .where(eq(eventRegistrationResponse.signupId, parseInt(registrationId)));
 
     const responseMap: Record<string, string> = {};
     responses.forEach(resp => {
@@ -343,11 +331,11 @@ export const updateRegistration = async (req: Request, res: Response) => {
     // Verify registration exists
     const [existingRegistration] = await db
       .select()
-      .from(eventSignup)
+      .from(eventRegistration)
       .where(
         and(
-          eq(eventSignup.id, parseInt(registrationId)),
-          eq(eventSignup.eventId, parseInt(eventId))
+          eq(eventRegistration.id, parseInt(registrationId)),
+          eq(eventRegistration.eventId, parseInt(eventId))
         )
       )
       .limit(1);
@@ -358,8 +346,11 @@ export const updateRegistration = async (req: Request, res: Response) => {
 
     const { responses, stripeTransactionId } = req.body;
 
+    const { status } = req.body;
+
     // Update the signup record
     const updateData: any = {
+      status: status,
       updatedAt: new Date(),
     };
 
@@ -368,12 +359,12 @@ export const updateRegistration = async (req: Request, res: Response) => {
     }
 
     const [updatedSignup] = await db
-      .update(eventSignup)
+      .update(eventRegistration)
       .set(updateData)
       .where(
         and(
-          eq(eventSignup.id, parseInt(registrationId)),
-          eq(eventSignup.eventId, parseInt(eventId))
+          eq(eventRegistration.id, parseInt(registrationId)),
+          eq(eventRegistration.eventId, parseInt(eventId))
         )
       )
       .returning();
@@ -382,8 +373,8 @@ export const updateRegistration = async (req: Request, res: Response) => {
     if (responses && Array.isArray(responses)) {
       // Delete existing responses for this signup
       await db
-        .delete(eventSignupResponse)
-        .where(eq(eventSignupResponse.signupId, parseInt(registrationId)));
+        .delete(eventRegistrationResponse)
+        .where(eq(eventRegistrationResponse.signupId, parseInt(registrationId)));
 
       // Insert new responses
       const responseValues = responses.map((resp: { questionId: number, response: string }) => ({
@@ -395,7 +386,7 @@ export const updateRegistration = async (req: Request, res: Response) => {
       }));
 
       if (responseValues.length > 0) {
-        await db.insert(eventSignupResponse).values(responseValues);
+        await db.insert(eventRegistrationResponse).values(responseValues);
       }
     }
 
