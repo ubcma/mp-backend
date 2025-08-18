@@ -399,3 +399,87 @@ export const updateRegistration = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+export const getUserRegistrations = async (req: Request, res: Response) => {
+  const headers = new Headers();
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = session.user.id;
+
+    // Fetch all registrations for the user
+    const registrations = await db
+      .select({
+        id: eventRegistration.id,
+        eventId: eventRegistration.eventId,
+        status: eventRegistration.status,
+        stripeTransactionId: eventRegistration.stripeTransactionId,
+        registeredAt: eventRegistration.createdAt,
+        // Event details
+        eventTitle: event.title,
+        eventStartsAt: event.startsAt,
+        eventEndsAt: event.startsAt,
+        eventLocation: event.location,
+      })
+      .from(eventRegistration)
+      .leftJoin(event, eq(eventRegistration.eventId, event.id))
+      .where(eq(eventRegistration.userId, userId));
+
+    if (registrations.length === 0) {
+      return res.status(404).json({ error: "No registrations found for this user" });
+    }
+
+    // Get all responses for these registrations
+    const registrationIds = registrations.map((reg) => reg.id);
+    const responses =
+      registrationIds.length > 0
+        ? await db
+            .select({
+              signupId: eventRegistrationResponse.signupId,
+              questionId: eventRegistrationResponse.questionId,
+              response: eventRegistrationResponse.response,
+              questionLabel: question.label,
+              questionType: question.type,
+            })
+            .from(eventRegistrationResponse)
+            .leftJoin(question, eq(eventRegistrationResponse.questionId, question.id))
+            .where(inArray(eventRegistrationResponse.signupId, registrationIds))
+        : [];
+
+    // Structure the data with responses grouped by registration
+    const registrationsWithResponses = registrations.map((registration) => {
+      const userResponses = responses.filter(
+        (resp) => resp.signupId === registration.id
+      );
+      const responseMap: Record<string, string> = {};
+
+      userResponses.forEach((resp) => {
+        if (resp.questionLabel) {
+          responseMap[resp.questionLabel] = resp.response;
+        }
+      });
+
+      return {
+        ...registration,
+        responses: responseMap,
+      };
+    });
+
+    return res.status(200).json({
+      registrations: registrationsWithResponses,
+    });
+  } catch (error) {
+    console.error("Error fetching user registrations:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
