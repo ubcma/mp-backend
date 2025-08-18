@@ -17,7 +17,6 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
-import { transaction } from "../db/schema/transaction";
 
 require('dotenv').config({ path: ['.env.development.local', '.env'] })
 
@@ -95,19 +94,19 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     switch (event.type) { // if valid Stripe Event and event is paymentintent success 
       case 'payment_intent.succeeded': {
         const intent = event.data.object as Stripe.PaymentIntent;
-        console.log(`PaymentIntent succeeded: ${intent.id}`);
+        console.log(`PaymentIntent succeeded !!!: ${intent.id}`);
         await processPaymentIntent(intent); // process: insert into db, clear redis cache
         break;
       }
 
       case 'payment_intent.created': {
-        console.log('webhook senses payment intent creation')
+        console.log('Webhook senses payment intent creation')
       }
 
       // if Stripe Event is paymentintent failed 
       case 'payment_intent.payment_failed': {
         const intent = event.data.object as Stripe.PaymentIntent;
-        console.warn(`PaymentIntent failed: ${intent.id}`);
+        console.warn(`PaymentIntent failed !!!: ${intent.id}`);
         break;
       }
       default:
@@ -131,7 +130,7 @@ export async function handleVerifyPayment(req: Request, res: Response) {
 
   try {
 
-    console.log("here");
+    console.log("handling the verification of payment");
 
     const { payment_intent } = req.query as { payment_intent: string };
     const session = await auth.api.getSession({ headers });
@@ -145,28 +144,15 @@ export async function handleVerifyPayment(req: Request, res: Response) {
       return res.status(400).json({ verified: false });
     }
 
-    const txn = await db.query.transaction.findFirst({
-      where: eq(transaction.stripe_payment_intent_id, payment_intent) && eq(transaction.userId, user.id)
-    });
-    console.log('transaction', txn )
-
-    if (!txn) {
-      return res.json({ verified: false, reason: 'Not recorded in DB yet' });
-    }
-
     const pi = await stripe.paymentIntents.retrieve(payment_intent);
 
-    console.log(pi);
-
-    if (pi.status === 'succeeded' && pi.metadata.userId === user.id) {
+    if (pi.status === "succeeded") {
       return res.json({ verified: true, paymentIntent: pi });
     } else {
       return res.json({ verified: false, paymentIntent: pi });
     }
-
   } catch (err) {
     console.error("Error verifying PaymentIntent:", err);
-    res.status(500).json({ error: 'Failed to verify PaymentIntent' });
+    res.status(500).json({ error: "Failed to verify PaymentIntent" });
   }
-
 }
