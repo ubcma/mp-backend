@@ -192,7 +192,11 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     event_id: data.eventId ?? null,
     paid_at: new Date(),
     status: 'succeeded'
+  }).onConflictDoUpdate({ // in case a pending transaction has been fired before
+  target: transaction.stripe_payment_intent_id,
+  set: { status: "succeeded", paid_at: new Date() },
   });
+
   console.log('Inserted into Transaction Table')
   await redis.del(`pi:${intent.id}`);
 }
