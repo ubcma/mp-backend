@@ -41,4 +41,4 @@ Thumbs.db
 
 # Miscellaneous
 coverage/
-*.tgz
+scripts/set-aws-env.sh

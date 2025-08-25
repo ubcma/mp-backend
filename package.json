@@ -13,6 +13,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.8.0",
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.873.0",
     "@stripe/stripe-js": "^7.5.0",
     "@uploadthing/react": "^6.8.0",
     "better-auth": "^1.2.7",

@@ -435,8 +435,10 @@ export const getUserRegistrations = async (req: Request, res: Response) => {
       .leftJoin(event, eq(eventRegistration.eventId, event.id))
       .where(eq(eventRegistration.userId, userId));
 
-    if (registrations.length === 0) {
-      return res.status(404).json({ error: "No registrations found for this user" });
+      if (registrations.length === 0) {
+        return res.status(200).json({
+        registrations: []
+      });
     }
 
     // Get all responses for these registrations
