@@ -1,10 +1,12 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, User } from "better-auth";
 import { createAuthMiddleware, openAPI } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Redis } from "ioredis";
 import { db } from "../db";
 import { userProfile } from "../db/schema/userProfile";
 import { eq } from "drizzle-orm";
+import { sendEmail } from "./emailService";
+import { Request } from "express";
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -46,6 +48,14 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL!,
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }, request) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        htmlBody: `<h2>Click the link to reset your password: <a href=${url}>${url}</a><h2>`,
+      });
+    },
   },
   origin: getAllowedOrigins(),
   session: {
@@ -100,6 +110,20 @@ export const auth = betterAuth({
     storage: "secondary-storage",
     window: 60,
     max: 100,
+  },
+  emailVerification: {
+    sendVerificationEmail: async ({ user, url, token }, request) => {
+        await sendEmail({
+            to: user.email,
+            subject: 'Verify your email address',
+            htmlBody: `Click the link to verify your email: ${url}`
+        })
+    },
+    sendOnSignUp: true, 
+    autoSignInAfterVerification: true,
+    async afterEmailVerification({user, request}: {user: User, request: Request}) {
+      console.log(`${user.email} has been successfully verified!`);
+    },
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
