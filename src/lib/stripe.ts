@@ -128,9 +128,8 @@ export async function createPaymentIntent(
 
 // in case we need the paymentintent again for a certain user
 export const getPaymentIntentForUser = async (userId: string) => {
-  const paymentIntentId = await redis.get(`pi:${userId}`);
+  const paymentIntentId = await redis.get(`user:${userId}:intent`);
   if (!paymentIntentId) return null;
-
   return stripe.paymentIntents.retrieve(paymentIntentId);
 };
 
@@ -178,6 +177,8 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
       userId: data.userId,
       eventId: data.eventId,
       stripeTransactionId: intent.id,
+    }).onConflictDoNothing({
+      target: [eventRegistration.userId, eventRegistration.eventId],
     });
     console.log('Inserted into Event Registration Table')
   }
