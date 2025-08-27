@@ -44,6 +44,7 @@ export const event = pgTable("event", {
   slug: text("slug").notNull(),
   price: integer("price"),
   isVisible: boolean("is_visible"),
+  membersOnly: boolean("members_only"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),

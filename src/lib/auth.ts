@@ -48,14 +48,15 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL!,
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
-    sendResetPassword: async ({ user, url }, request) => {
-      await sendEmail({
-        to: user.email,
-        subject: "Reset your password",
-        htmlBody: `<h2>Click the link to reset your password: <a href=${url}>${url}</a><h2>`,
-      });
-    },
+    // ENABLE CODE BELOW ONCE EMAIL IS CONFIGURED
+    // requireEmailVerification: true,
+    // sendResetPassword: async ({ user, url }, request) => {
+    //   await sendEmail({
+    //     to: user.email,
+    //     subject: "Reset your password",
+    //     htmlBody: `<h2>Click the link to reset your password: <a href=${url}>${url}</a><h2>`,
+    //   });
+    // },
   },
   origin: getAllowedOrigins(),
   session: {
