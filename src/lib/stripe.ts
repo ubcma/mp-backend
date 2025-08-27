@@ -178,7 +178,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
       eventId: data.eventId,
       stripeTransactionId: intent.id,
     }).onConflictDoNothing({
-      target: [eventSignup.userId, eventSignup.eventId],
+      target: [eventRegistration.userId, eventRegistration.eventId],
     });
     console.log('Inserted into Event Registration Table')
   }
