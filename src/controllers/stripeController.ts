@@ -91,27 +91,16 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   }
 
   try {
-    switch (event.type) { // if valid Stripe Event and event is paymentintent success 
-      case 'payment_intent.succeeded': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        console.log(`PaymentIntent succeeded !!!: ${intent.id}`);
-        await processPaymentIntent(intent); // process: insert into db, clear redis cache
-        break;
-      }
-
-      case 'payment_intent.created': {
-        console.log('Webhook senses payment intent creation')
-      }
-
-      // if Stripe Event is paymentintent failed 
-      case 'payment_intent.payment_failed': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        console.warn(`PaymentIntent failed !!!: ${intent.id}`);
-        break;
-      }
-      default:
-        console.log(`Logged event type: ${event.type}`);
+    switch (event.type) {
+  case 'payment_intent.succeeded': {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    await processPaymentIntent(intent);
+    break;
     }
+    default:
+      console.log(`Logged event type: ${event.type}`); // no DB writes here
+  }
+
 
     // any other Stripe Event
     res.json({ received: true });
