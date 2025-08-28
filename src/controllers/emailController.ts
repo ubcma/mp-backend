@@ -4,8 +4,9 @@ import { sendEmail } from "../lib/emailService";
 import {
   emailVerificationTemplate,
   forgotPasswordTemplate,
-  eventTicketTemplate
+  eventReceiptWithTicketTemplate
 } from '../aws/emailTemplates'
+import { sendReceiptEmail } from "../lib/receipts";
 
 export const sendVerificationEmail = async (req: Request, res: Response) => {
   const { email, verificationLink } = req.body;
@@ -31,14 +32,35 @@ export const sendForgotPasswordEmail = async (req: Request, res: Response) => {
   }
 };
 
-export const sendEventTicketEmail = async (req: Request, res: Response) => {
-  const { email, eventName, ticketDetails } = req.body;
 
+// Manual/test receipt trigger (calls lib/receipts) without stripe webhook trigger required 
+export const sendReceipt = async (req: Request, res: Response) => {
   try {
-    const { subject, htmlBody } = eventTicketTemplate(eventName, ticketDetails);
-    await sendEmail({ to: email, subject, htmlBody });
-    res.status(200).json({ message: "Event ticket email sent" });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to send event ticket email" });
+    const {
+      userId,
+      paymentIntentId,
+      amountInCents,
+      currency,
+      purchaseType,
+      eventId,
+    } = req.body;
+
+    if (!userId || !paymentIntentId || !amountInCents || !currency || !purchaseType) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    await sendReceiptEmail({
+      userId,
+      paymentIntentId,
+      amountInCents,
+      currency,
+      purchaseType,
+      eventId: eventId ?? null,
+    });
+
+    res.status(200).json({ message: "Receipt email queued/sent" });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to send receipt email" });
   }
 };
+
