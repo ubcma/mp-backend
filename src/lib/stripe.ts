@@ -10,6 +10,7 @@ import { event as eventsTable } from "../db/schema/event";
 import { PAYMENT_EXPIRY } from "./constants";
 import { MEMBERSHIP_PRICE  } from "./constants";
 import { eventRegistration } from "../db/schema/event";
+import { sendReceiptEmail } from "../lib/receipts";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -75,9 +76,6 @@ export async function createPaymentIntent(
     
 
     if (!evt) throw httpError(404, "event_not_found");
-
-    // add capacity restraints here 
-
     if (evt.price == null) throw httpError(409, "event_price_missing");
 
     
@@ -200,7 +198,27 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
 
   console.log('Inserted into Transaction Table')
   await redis.del(`pi:${intent.id}`);
+
+  // 2) Send the receipt (idempotent in sendReceiptEmail via Redis key email:pi:<id>)
+  try {
+    await sendReceiptEmail({
+      userId: data.userId,
+      paymentIntentId: intent.id,
+      amountInCents: data.amount,       // cents
+      currency: data.currency,          // e.g. "cad"
+      purchaseType: data.purchaseType,  // "membership" | "event"
+      eventId: data.eventId ?? null,
+    });
+    console.log("Receipt email queued/sent");
+  } catch (err) {
+    // Do NOT throw or try to regenerate another webhook hit from stripe 
+    console.error("[sendReceiptEmail] failed:", err);
+  }
+
+  // Clean up the PI metadata key last
+  await redis.del(`pi:${intent.id}`);
 }
+
 
 // Utility function to create a price for a product
 export const createPrice = async (
