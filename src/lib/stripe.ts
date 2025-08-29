@@ -84,9 +84,7 @@ export async function createPaymentIntent(
     meta.eventId = String(eventId); //
   } else if (purchaseType === "membership") {
     if (user.role === "Member") throw httpError(409, "already_member");
-    amountInCents = Math.round(
-    Number(process.env.MEMBERSHIP_PRICE_CENTS ?? 20) * 100
-    );
+    amountInCents = amountInCents = MEMBERSHIP_PRICE;
     finalCurrency = "cad";
   } else {
     throw httpError(400, "bad_purchase_type");
