@@ -6,13 +6,11 @@ const fmtAmt = (cents: number, currency: Currency = "cad") =>
 
 const base = `font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;line-height:1.5;`;
 
-
-
 export const emailVerificationTemplate = (verificationLink: string) => ({
-  subject: "Verify Your Email Address",
+  subject: "Verify Your UBCMA Email Address",
   htmlBody: `
     <h1>Email Verification</h1>
-    <p>Please verify your email by clicking the link below:</p>
+    <p>Please verify your membership portal account by clicking the link below:</p>
     <a href="${verificationLink}">Verify Email</a>
   `,
 });
@@ -21,7 +19,7 @@ export const forgotPasswordTemplate = (resetLink: string) => ({
   subject: "Reset Your Password",
   htmlBody: `
     <h1>Password Reset</h1>
-    <p>You requested to reset your password. Click the link below to proceed:</p>
+    <p>You requested to reset your password to the MA membership portal. Click the link below to proceed:</p>
     <a href="${resetLink}">Reset Password</a>
   `,
 });
