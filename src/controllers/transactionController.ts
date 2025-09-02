@@ -28,8 +28,6 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 10;
 
-    console.log(page + " " + pageSize)
-
     // Calculate offset for pagination
     const offset = (page - 1) * pageSize;
 

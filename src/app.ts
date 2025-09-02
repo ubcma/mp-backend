@@ -24,7 +24,7 @@ if (process.env.NODE_ENV !== "development") {
     windowMs: 10 * 60 * 1000,
     max: 100,
     standardHeaders: 'draft-8',
-    keyGenerator: (req) => ipKeyGenerator(req?.user?.id ?? req.ip ?? "unknown-ip"),
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown-ip"),
     statusCode: 429,
     message: "Too many requests, please try again later",
   });
