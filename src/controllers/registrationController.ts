@@ -428,7 +428,7 @@ export const getUserRegistrations = async (req: Request, res: Response) => {
         // Event details
         eventTitle: event.title,
         eventStartsAt: event.startsAt,
-        eventEndsAt: event.startsAt,
+        eventEndsAt: event.endsAt,
         eventLocation: event.location,
       })
       .from(eventRegistration)
