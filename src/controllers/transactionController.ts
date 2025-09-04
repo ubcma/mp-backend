@@ -5,6 +5,7 @@ import { transaction } from "../db/schema/transaction";
 import { userProfile } from "../db/schema/userProfile";
 import { count, eq, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
+import { validateAdmin } from "../lib/validateSession";
 
 export const getAllTransactions = async (req: Request, res: Response) => {
   const headers = new Headers();
@@ -14,15 +15,17 @@ export const getAllTransactions = async (req: Request, res: Response) => {
   }
 
   try {
-    const session = await auth.api.getSession({ headers });
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
 
-    // Uncomment to restrict to Admin users only
-    /*
-    if (!session || session.user.role !== 'Admin') {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-    */
+
+    const userId = session.user.id;
+
+    validateAdmin(userId);
 
     // Extract page and pageSize from query params, with defaults
     const page = parseInt(req.query.page as string) || 1;
@@ -70,5 +73,41 @@ export const getAllTransactions = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Failed to fetch transactions:", error);
     res.status(500).json({ error: "Failed to fetch transactions" });
+  }
+};
+
+export const getTotalRevenue = async (req: Request, res: Response) => {
+  const headers = new Headers();
+
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: headers,
+    });
+
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = session.user.id;
+
+    validateAdmin(userId);
+
+    const result = await db
+      .select({
+        totalRevenue: sql<number>`SUM(CAST(${transaction.amount} AS numeric))`,
+      })
+      .from(transaction)
+      .where(sql`${transaction.status} = 'succeeded'`);
+
+    const totalRevenue = result[0]?.totalRevenue || 0;
+
+    res.status(200).json({ totalRevenue });
+  } catch (error) {
+    console.error("Failed to fetch total revenue:", error);
+    res.status(500).json({ error: "Failed to fetch total revenue" });
   }
 };
