@@ -9,9 +9,6 @@ import { Redis } from "ioredis";
 
 const redis = new Redis(`${process.env.REDIS_URL}?family=0`);
 
-// In non-prod (dev/sandbox), force all test receipts to this inbox.
-// In prod, we’ll use the real user email from DB.
-const TEST_RECEIPT_EMAIL = process.env.TEST_RECEIPT_EMAIL ?? "hello@ubcma.ca";
 
 type Currency = "cad" | "usd";
 
@@ -41,16 +38,10 @@ export async function sendReceiptEmail(opts: {
   // Choose recipient:
   // - production: real user email
   // - non-production: forced test inbox
-  const isProd = process.env.NODE_ENV === "production";
-  const to = isProd ? user?.email : TEST_RECEIPT_EMAIL;
 
+  const to = user?.email;
   if (!to) {
-    console.warn(
-      "[receipts] No recipient email resolved. (isProd=%s, dbEmail=%s, TEST_RECEIPT_EMAIL=%s) — skipping.",
-      isProd,
-      user?.email,
-      TEST_RECEIPT_EMAIL
-    );
+    console.warn("[receipts] No recipient email found — skipping.", user?.email);
     return;
   }
 
@@ -118,8 +109,6 @@ export async function sendReceiptEmail(opts: {
   });
 
   console.log("[receipts] isProd=%s  TEST_RECEIPT_EMAIL=%s  dbEmail=%s  NODE_ENV=%s",
-  process.env.NODE_ENV === "production",
-  TEST_RECEIPT_EMAIL,
   user?.email,
   process.env.NODE_ENV
 );
