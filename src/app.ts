@@ -14,6 +14,7 @@ import userRouter from "./routes/userRoutes";
 import validateEmailRouter from "./routes/validateEmailRoutes";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import emailRouter from "./routes/emailRoutes";
+import morgan from 'morgan';
 
 const app = express();
 
@@ -31,6 +32,8 @@ if (process.env.NODE_ENV !== "development") {
 
   app.use(limiter);
 }
+
+app.use(morgan('dev'));
 
 app.use(
   cors({
