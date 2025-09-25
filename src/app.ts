@@ -15,6 +15,7 @@ import validateEmailRouter from "./routes/validateEmailRoutes";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import emailRouter from "./routes/emailRoutes";
 import morgan from 'morgan';
+import jobRouter from "./routes/jobRoutes";
 
 const app = express();
 
@@ -63,6 +64,7 @@ app.use("/api/me", meRouter);
 app.use("/api/events", eventRouter);
 app.use("/api/stripe", stripeRouter);
 app.use("/api/transactions", transactionRouter);
+app.use("/api/jobs", jobRouter);
 app.use("/api/users", userRouter);
 app.use("/api/validate-email", validateEmailRouter);
 app.use("/api/email", emailRouter);
