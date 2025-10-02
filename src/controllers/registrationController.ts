@@ -6,6 +6,7 @@ import { userProfile } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
 import { event, eventRegistration, eventRegistrationResponse, question } from "../db/schema/event";
 import { validateAdmin } from "../lib/validateSession";
+import { sendReceiptEmail } from "../lib/receipts";
 
 export const getEventRegistrations = async (req: Request, res: Response) => {
   const { id: eventId } = req.params;
@@ -164,7 +165,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       .values({
         userId: userId,
         eventId: parseInt(eventId),
-        stripeTransactionId: stripeTransactionId || null,
+        stripeTransactionId: stripeTransactionId || null, // in case there is no payment (eg. free event)
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -184,6 +185,20 @@ export const createRegistration = async (req: Request, res: Response) => {
         await db.insert(eventRegistrationResponse).values(responseValues);
       }
     }
+
+    // sendEmail here: but change signature to not require intent 
+    try {
+      await sendReceiptEmail({
+        userId: userId,     
+        purchaseType: "event",  // "membership" | "event"
+        eventId: parseInt(eventId) ?? null,
+      });
+      console.log("Receipt email queued/sent");
+    } catch (err) {
+      // Do NOT throw or try to regenerate another webhook hit from stripe 
+      console.error("[sendReceiptEmail] failed:", err);
+    }
+
 
     return res.status(201).json({
       message: "Successfully registered for event",
