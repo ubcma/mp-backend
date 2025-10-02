@@ -47,7 +47,7 @@ export const eventReceiptWithTicketTemplate = (p: {
   email: string;
   amountInCents: number;
   currency: Currency;
-  paymentIntentId: string;
+  paymentIntentId?: string | null;
   purchaseDateISO: string;
   event: { name: string; startAtISO?: string | null; endAtISO?: string | null; location?: string | null };
   ticket?: { code?: string | null; seat?: string | null; qrImageUrl?: string | null };
@@ -60,10 +60,11 @@ export const eventReceiptWithTicketTemplate = (p: {
     p.event.location ? `<li><strong>Location:</strong> ${p.event.location}</li>` : "",
   ].join("");
 
+
   const htmlBody = `
   <div style="${base}">
     <h1 style="margin-bottom:4px">🎫 Ticket Confirmation</h1>
-    <p style="margin-top:0">Thanks${p.name ? `, ${p.name}` : ""}! Your purchase is confirmed.</p>
+    <p style="margin-top:0">Thanks${p.name ? `, ${p.name}` : ""}! Your ${p.amountInCents > 0 ? "purchase" : "registration"} is confirmed.</p>
 
     <h2 style="margin-bottom:6px">${p.event.name}</h2>
     <ul style="margin-top:0">${when}</ul>
@@ -73,21 +74,19 @@ export const eventReceiptWithTicketTemplate = (p: {
     <h3 style="margin-bottom:6px">Transaction Details</h3>
     <ul style="margin-top:0">
       <li><strong>Amount Paid:</strong> ${fmtAmt(p.amountInCents, p.currency)}</li>
-      <li><strong>Transaction ID:</strong> ${p.paymentIntentId}</li>
+      ${p.paymentIntentId ? `<li><strong>Transaction ID:</strong> ${p.paymentIntentId}</li>` : ""}  
       <li><strong>Purchase Date:</strong> ${new Date(p.purchaseDateISO).toLocaleString("en-CA",{ timeZone:"America/Vancouver" })}</li>
       <li><strong>Receipt sent to:</strong> ${p.email}</li>
     </ul>
 
-    <p style="margin:16px 0"><em>All ticket purchases are final sale.</em></p>
+    <p style="margin:16px 0"><em>All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.</em></p>
     <hr/>
-    <p style="font-size:12px;color:#666">
-      Need help? Reply to this email. Apple Wallet pass coming soon.
-    </p>
+    <p style="font-size:12px;color:#666">Need help? Reply to this email.</p>
   </div>`;
 
   const textBody = [
     `Ticket Confirmation — ${p.event.name}`,
-    `Thanks${p.name ? `, ${p.name}` : ""}! Your purchase is confirmed.`,
+    `Thanks${p.name ? `, ${p.name}` : ""}! Your ${p.amountInCents > 0 ? "purchase" : "registration"} is confirmed.`,
     "",
     "Event:",
     `  Name: ${p.event.name}`,
@@ -102,15 +101,16 @@ export const eventReceiptWithTicketTemplate = (p: {
     "",
     "Transaction:",
     `  Amount: ${fmtAmt(p.amountInCents, p.currency)}`,
-    `  Transaction ID: ${p.paymentIntentId}`,
+    p.paymentIntentId ? `  Transaction ID: ${p.paymentIntentId}` : "",
     `  Purchase Date: ${new Date(p.purchaseDateISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}`,
     `  Receipt sent to: ${p.email}`,
     "",
-    "All ticket purchases are final sale.",
+    `All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.`,
   ].filter(Boolean).join("\n");
 
   return { subject, htmlBody, textBody };
 };
+
 
 export const membershipReceiptTemplate = (p: {
   name?: string | null;

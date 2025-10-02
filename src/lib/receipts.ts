@@ -12,32 +12,36 @@ const redis = new Redis(`${process.env.REDIS_URL}?family=0`);
 
 type Currency = "cad" | "usd";
 
-export async function sendReceiptEmail(opts: {
+type EmailOptions = {
+
+}
+
+export async function sendReceiptEmail(opts: { //single options object to send all arguments  
   userId: string;
-  paymentIntentId: string;
-  amountInCents: number;
-  currency: string;
+  paymentIntentId?: string; // changed to optional 
+  amountInCents?: number;
+  currency?: string;
   purchaseType: "membership" | "event";
-  eventId?: number | null;
-}) {
-  // Idempotency guard (avoid duplicate sends on webhook retries)
-  const key = `email:pi:${opts.paymentIntentId}`;
-  const setOk = await redis.set(key, "1", "EX", 60 * 60 * 24, "NX");
+  eventId?: number;
+})
+ {
+  // Idempotency guard (avoid duplicate sends on webhook retries OR createRegistration call)
+  const redisKey = opts.paymentIntentId
+    ? `email:pi:${opts.paymentIntentId}` // payment ID 
+    : `email:free:${opts.userId}:${opts.eventId}`; // FIX: in case the event is free, we use redis fallback on the user and event id rather than payment 
+
+  const setOk = await redis.set(redisKey, "1", "EX", 60 * 60 * 24, "NX");
   if (setOk === null) {
     console.log("Receipt email already sent; skipping.");
     return;
   }
 
-  // Lookup user (for name + real email)
+  // Lookup the user for the email and name (based on id)
   const [user] = await db
     .select({ name: userProfile.name, email: userProfile.email })
     .from(userProfile)
     .where(eq(userProfile.userId, opts.userId))
     .limit(1);
-
-  // Choose recipient:
-  // - production: real user email
-  // - non-production: forced test inbox
 
   const to = user?.email;
   if (!to) {
@@ -46,9 +50,12 @@ export async function sendReceiptEmail(opts: {
   }
 
   const purchaseDateISO = new Date().toISOString();
-  const currency = (opts.currency?.toLowerCase() as Currency) || "cad";
+  const currency: Currency = opts.currency?.toLowerCase() === "usd" ? "usd" : "cad";
+  const amountInCents = opts.amountInCents ?? 0;
 
-  if (opts.purchaseType === "membership") {
+  // case one: purchase type == membership!! 
+
+  if ((opts.purchaseType === "membership")  && (opts.paymentIntentId && opts.amountInCents != null)) {
     const { subject, htmlBody } = membershipReceiptTemplate({
       name: user?.name ?? null,
       email: to, // show recipient in email body
@@ -61,7 +68,8 @@ export async function sendReceiptEmail(opts: {
     return;
   }
 
-  // combine receipt and ticket 
+ // case two: purchase type == event!! 
+
   let eventMeta = {
     name: "UBCMA Event",
     startAtISO: null as string | null,
@@ -91,20 +99,24 @@ export async function sendReceiptEmail(opts: {
     }
   }
 
-  const defaultTicketCode = `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`;
+  // Generate a ticket code for both paid and unpaid scenarios 
+  const defaultTicketCode = opts.paymentIntentId
+    ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
+    : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
+
 
   const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
     name: user?.name ?? null,
     email: to, // show recipient in email body
-    amountInCents: opts.amountInCents,
+    amountInCents,
     currency,
-    paymentIntentId: opts.paymentIntentId,
-    purchaseDateISO,
+    paymentIntentId: opts.paymentIntentId ?? null,
+    purchaseDateISO, 
     event: eventMeta,
     ticket: {
       code: defaultTicketCode,
       seat: null,
-      qrImageUrl: null, // plug in later if you host QR images
+      qrImageUrl: null, // plug if you host 
     },
   });
 
