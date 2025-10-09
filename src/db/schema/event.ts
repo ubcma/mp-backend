@@ -44,6 +44,7 @@ export const event = pgTable("event", {
   slug: text("slug").notNull(),
   price: integer("price"),
   isVisible: boolean("is_visible"),
+  membersOnly: boolean("members_only"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
@@ -65,12 +66,15 @@ export const eventTag = pgTable(
   (table) => [primaryKey({ columns: [table.eventId, table.tagId] })]
 );
 
-export const eventSignup = pgTable("event_signup", {
+export const eventRegistration = pgTable("event_registration", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull()
   .default(sql`DEFAULT`),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  status: text("status")
+    .notNull()
+    .default(sql`registered`),
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
@@ -106,12 +110,12 @@ export const question = pgTable("question", {
     .default(sql`now()`),
 });
 
-export const eventSignupResponse = pgTable("event_signup_response", {
+export const eventRegistrationResponse = pgTable("event_registration_response", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull()
   .default(sql`DEFAULT`),
   signupId: bigint("signup_id", { mode: "number" })
     .notNull()
-    .references(() => eventSignup.id, { onDelete: "cascade" }),
+    .references(() => eventRegistration.id, { onDelete: "cascade" }),
   questionId: bigint("question_id", { mode: "number" })
     .notNull()
     .references(() => question.id, { onDelete: "cascade" }),

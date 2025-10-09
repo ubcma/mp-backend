@@ -12,6 +12,7 @@ import {
   UpdateEventInput,
 } from "../types/event";
 import { deleteOldFile } from "../lib/uploadthing";
+import { validateAdmin } from "../lib/validateSession";
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
@@ -111,20 +112,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    const [result] = await db
-      .select({
-        userRole: userProfile.role,
-      })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const userRole = result?.userRole;
-
-    if (userRole !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
+    validateAdmin(userId);
 
     const data: CreateEventInput = req.body;
     const startsAt = new Date(data.startsAt);
@@ -140,6 +128,7 @@ export const createEvent = async (req: Request, res: Response) => {
         price: data.price,
         location: data.location,
         isVisible: data.isVisible,
+        membersOnly: data.membersOnly,
         startsAt: startsAt,
         endsAt: endsAt,
         createdAt: new Date(),
@@ -196,20 +185,7 @@ export const updateEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    const [user] = await db
-      .select({
-        userRole: userProfile.role,
-      })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const userRole = user?.userRole;
-
-    if (userRole !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
+    validateAdmin(userId);
 
     const data: UpdateEventInput = req.body;
 
@@ -234,6 +210,7 @@ export const updateEventById = async (req: Request, res: Response) => {
         price: data.price,
         location: data.location,
         isVisible: data.isVisible,
+        membersOnly: data.membersOnly,
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),
@@ -269,20 +246,7 @@ export const deleteEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    const [user] = await db
-      .select({
-        userRole: userProfile.role,
-      })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const userRole = user?.userRole;
-
-    if (userRole !== "Admin") {
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
+    validateAdmin(userId);
 
     const data: DeleteEventInput = req.body;
 

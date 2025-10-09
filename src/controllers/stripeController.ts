@@ -17,7 +17,6 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
-import { transaction } from "../db/schema/transaction";
 
 require('dotenv').config({ path: ['.env.development.local', '.env'] })
 
@@ -41,8 +40,16 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
 
     const userId = user.id;
 
-    const { purchaseType, amount, currency = 'cad' } = req.body; // pass the request body into the helper function for creation of paymentintent
-    const paymentIntent = await createPaymentIntent(purchaseType, userId, amount, currency); // taken from the  library
+    const { purchaseType, amount, currency = 'cad', eventId } = req.body;// pass the request body into the helper function for creation of paymentintent
+    const paymentIntent = await createPaymentIntent(
+      purchaseType as 'membership' | 'event',
+      userId,
+      amount,     // ignored for events
+      currency,
+      eventId     
+    );
+
+ // taken from the  library
     res.json({ clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id,  metadata:paymentIntent.metadata}); // send client secret back as response 
 
     console.log('Client secret:', paymentIntent.client_secret);
@@ -76,6 +83,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   try {
     event = verifyStripeWebhook(req, process.env.STRIPE_WEBHOOK_SECRET!); // retrieve Stripe Event object instantiated and returned if the stripe signature and headers were verified
     console.log("Stripe webhook hit");
+
   } catch (err) {
     console.error('Webhook signature validation failed:', err);
     res.status(400).send('Webhook signature failed');
@@ -83,23 +91,16 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
   }
 
   try {
-    switch (event.type) { // if valid Stripe Event and event is paymentintent success 
-      case 'payment_intent.succeeded': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        console.log(`PaymentIntent succeeded: ${intent.id}`);
-        await processPaymentIntent(intent); // process: insert into db, clear redis cache
-        break;
-      }
-
-      // if Stripe Event is paymentintent failed 
-      case 'payment_intent.payment_failed': {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        console.warn(`PaymentIntent failed: ${intent.id}`);
-        break;
-      }
-      default:
-        console.log(`Logged event type: ${event.type}`);
+    switch (event.type) {
+  case 'payment_intent.succeeded': {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    await processPaymentIntent(intent);
+    break;
     }
+    default:
+      console.log(`Logged event type: ${event.type}`); // no DB writes here
+  }
+
 
     // any other Stripe Event
     res.json({ received: true });
@@ -110,7 +111,6 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 };
 
 export async function handleVerifyPayment(req: Request, res: Response) {
-
   const headers = new Headers();
 
   if (req.headers.cookie) {
@@ -119,7 +119,7 @@ export async function handleVerifyPayment(req: Request, res: Response) {
 
   try {
 
-    console.log("here");
+    console.log("handling the verification of payment");
 
     const { payment_intent } = req.query as { payment_intent: string };
     const session = await auth.api.getSession({ headers });
@@ -133,27 +133,15 @@ export async function handleVerifyPayment(req: Request, res: Response) {
       return res.status(400).json({ verified: false });
     }
 
-    const txn = await db.query.transaction.findFirst({
-      where: eq(transaction.stripe_payment_intent_id, payment_intent) && eq(transaction.userId, user.id)
-    });
-
-    if (!txn) {
-      return res.json({ verified: false, reason: 'Not recorded in DB yet' });
-    }
-
     const pi = await stripe.paymentIntents.retrieve(payment_intent);
 
-    console.log(pi);
-
-    if (pi.status === 'succeeded' && pi.metadata.userId === user.id) {
+    if (pi.status === "succeeded") {
       return res.json({ verified: true, paymentIntent: pi });
     } else {
       return res.json({ verified: false, paymentIntent: pi });
     }
-
   } catch (err) {
     console.error("Error verifying PaymentIntent:", err);
-    res.status(500).json({ error: 'Failed to verify PaymentIntent' });
+    res.status(500).json({ error: "Failed to verify PaymentIntent" });
   }
-
 }

@@ -13,9 +13,10 @@ import { handleStripeWebhook } from "./controllers/stripeController";
 import userRouter from "./routes/userRoutes";
 import validateEmailRouter from "./routes/validateEmailRoutes";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import emailRouter from "./routes/emailRoutes";
+import morgan from 'morgan';
 
 const app = express();
-
 
 if (process.env.NODE_ENV !== "development") {
   app.set("trust proxy", 1); // trust first proxy for rate limiting
@@ -24,13 +25,15 @@ if (process.env.NODE_ENV !== "development") {
     windowMs: 10 * 60 * 1000,
     max: 100,
     standardHeaders: 'draft-8',
-    keyGenerator: (req) => ipKeyGenerator(req?.user?.id ?? req.ip ?? "unknown-ip"),
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown-ip"),
     statusCode: 429,
     message: "Too many requests, please try again later",
   });
 
   app.use(limiter);
 }
+
+app.use(morgan('dev'));
 
 app.use(
   cors({
@@ -62,6 +65,7 @@ app.use("/api/stripe", stripeRouter);
 app.use("/api/transactions", transactionRouter);
 app.use("/api/users", userRouter);
 app.use("/api/validate-email", validateEmailRouter);
+app.use("/api/email", emailRouter);
 
 export default app;
 
