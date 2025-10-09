@@ -1,13 +1,12 @@
 import { Router } from "express";
 import { asyncHandler } from "../lib/asyncHandler";
-import { createJob, getAllJobs } from "../controllers/jobController";
+import { createJob, getAllJobs, updateJob, deleteJob } from "../controllers/jobController";
 
 const jobRouter = Router();
 
 jobRouter.get("/", getAllJobs);
 jobRouter.post("/create", asyncHandler(createJob));
-// jobRouter.get("/:id");
-// jobRouter.put('/update')
-// jobRouter.delete('/delete')
+jobRouter.put("/update", asyncHandler(updateJob));
+jobRouter.delete("/delete", asyncHandler(deleteJob));
 
 export default jobRouter;
