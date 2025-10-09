@@ -167,7 +167,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     console.log('Updated Member Profile')
   }
 
-  //Insert into eventRegistration 
+  //Insert into eventRegistration (directly)
   if (data.purchaseType === "event" && data.eventId) {
     await db.insert(eventRegistration).values({
       userId: data.userId,
@@ -197,13 +197,13 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   console.log('Inserted into Transaction Table')
   await redis.del(`pi:${intent.id}`);
 
-  // 2) Send the receipt (idempotent in sendReceiptEmail via Redis key email:pi:<id>)
+  // 2) Send the receipt (idempotency card for redis should be in the sendEmail function)
   try {
     await sendReceiptEmail({
       userId: data.userId,
       paymentIntentId: intent.id,
-      amountInCents: data.amount,       // cents
-      currency: data.currency,          // e.g. "cad"
+      amountInCents: data.amount,       // IN CENTS!!! 
+      currency: data.currency,          // should be cad | usd 
       purchaseType: data.purchaseType,  // "membership" | "event"
       eventId: data.eventId ?? null,
     });
