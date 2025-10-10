@@ -20,20 +20,18 @@ export const exportUsers = async (req: Request, res: Response) => {
     const userId = session.user.id;
     validateAdmin(userId);
 
-
-    const exportType = (req.query.exportType as string) || "all"; // 'page' or 'all'
+    const exportType = (req.query.exportType as string) || "all";
     const role = (req.query.role as string) || null;
     const search = (req.query.search as string)?.toLowerCase() || null;
     const page = Math.max(parseInt(req.query.page as string) || 1, 1);
-    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 10, 100);
+    const pageSize = Math.min(parseInt(req.query.pageSize as string) || 25, 100);
     const offset = (page - 1) * pageSize;
 
-
+    // Filters
     const whereClauses: any[] = [];
     if (role && role !== "All Roles") {
       whereClauses.push(sql`${userProfile.role} = ${role}`);
     }
-
     if (search) {
       whereClauses.push(
         sql`(LOWER(${users.name}) LIKE ${"%" + search + "%"} 
@@ -48,7 +46,7 @@ export const exportUsers = async (req: Request, res: Response) => {
         ? whereClauses[0]
         : undefined;
 
-
+    // Query
     let userQuery = db
       .select({
         userId: users.id,
@@ -61,20 +59,17 @@ export const exportUsers = async (req: Request, res: Response) => {
         linkedinUrl: userProfile.linkedinUrl,
         diet: userProfile.diet,
         interests: userProfile.interests,
+        onboardingComplete: userProfile.onboardingComplete,
       })
       .from(users)
       .leftJoin(userProfile, eq(users.id, userProfile.userId));
 
     if (whereCondition) userQuery.where(whereCondition);
-
-    // exportType = page → ONLY export the current page
-    if (exportType === "page") {
-      userQuery.limit(pageSize).offset(offset);
-    }
+    if (exportType === "page") userQuery.limit(pageSize).offset(offset);
 
     const userResults = await userQuery;
 
-    // convert everything to csv 
+    // Format + CSV
     const fields = [
       "userId",
       "name",
@@ -86,11 +81,20 @@ export const exportUsers = async (req: Request, res: Response) => {
       "linkedinUrl",
       "diet",
       "interests",
+      "onboardingComplete",
     ];
     const parser = new Parser({ fields });
-    const csv = parser.parse(userResults);
+    const csv = parser.parse(
+      userResults.map((u) => ({
+        ...u,
+        diet: Array.isArray(u.diet) ? u.diet.join(", ") : u.diet ?? "",
+        interests: Array.isArray(u.interests)
+          ? u.interests.join(", ")
+          : u.interests ?? "",
+        onboardingComplete: u.onboardingComplete ? "Yes" : "No",
+      }))
+    );
 
-    // send the csv to the client end 
     res.header("Content-Type", "text/csv");
     res.attachment(
       `ubcma_users_export_${exportType === "page" ? `page_${page}` : "all"}.csv`
