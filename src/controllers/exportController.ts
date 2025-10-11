@@ -97,7 +97,7 @@ export const exportUsers = async (req: Request, res: Response) => {
 
     res.header("Content-Type", "text/csv");
     res.attachment(
-      `ubcma_users_export_${exportType === "page" ? `page_${page}` : "all"}.csv`
+      `ubcma_users_export_${exportType === "page" ? `page_${page}` : "all"}_${search ? `search_${search}` : ""}_${role ? `role_${role}` : ""}.csv`
     );
     res.send(csv);
   } catch (error) {
