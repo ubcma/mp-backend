@@ -27,7 +27,7 @@ export const exportUsers = async (req: Request, res: Response) => {
     const pageSize = Math.min(parseInt(req.query.pageSize as string) || 25, 100);
     const offset = (page - 1) * pageSize;
 
-    // Filters
+  
     const whereClauses: any[] = [];
     if (role && role !== "All Roles") {
       whereClauses.push(sql`${userProfile.role} = ${role}`);
