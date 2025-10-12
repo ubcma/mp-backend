@@ -96,3 +96,54 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
+export const updateUserRole = async (req: Request, res: Response) => {
+  const headers = new Headers();
+  if (req.headers.cookie) headers.append("cookie", req.headers.cookie);
+
+  try {
+    // admin authorization for current user 
+    const session = await auth.api.getSession({ headers });
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+
+    const adminId = session.user.id;
+    validateAdmin(adminId);
+
+    // requested user, requested role change 
+    const { userId } = req.params; 
+    const { newRole } = req.body; 
+
+    if (!newRole) {
+      return res.status(400).json({ error: "Missing newRole in request body" });
+    }
+
+
+    const [updatedUser] = await db
+      .update(userProfile)
+      .set({
+        role: newRole,
+        updatedAt: new Date(),
+      })
+      .where(eq(userProfile.userId, userId))
+      .returning({
+        userId: userProfile.userId,
+        name: userProfile.name,
+        email: userProfile.email,
+        role: userProfile.role,
+        updatedAt: userProfile.updatedAt,
+      });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log(`Updated role for user ${userId} to ${newRole}`);
+
+    return res.status(200).json({
+      message: "Successfully updated user role",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating user role:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
