@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, sql} from "drizzle-orm";
 import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
 import { userProfile, userRoleEnum } from "../db/schema/userProfile";
@@ -29,6 +29,12 @@ export const getAllEvents = async (req: Request, res: Response) => {
         description: event.description,
         imageUrl: event.imageUrl,
         isVisible: event.isVisible,
+        attendeeCap: event.attendeeCap,
+        currentAttendeeCount: sql<number>`(
+          SELECT COUNT(*)::int
+          FROM event_registration
+          WHERE event_registration.event_id = ${event.id}
+        )`,
       })
       .from(event)
       .leftJoin(eventTag, eq(eventTag.eventId, event.id))
@@ -129,6 +135,7 @@ export const createEvent = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
+        attendeeCap: data.attendeeCap || null,
         startsAt: startsAt,
         endsAt: endsAt,
         createdAt: new Date(),
@@ -211,6 +218,7 @@ export const updateEventById = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
+        attendeeCap: data.attendeeCap || null,
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),
