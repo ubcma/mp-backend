@@ -324,6 +324,7 @@ export const getRegistrationById = async (req: Request, res: Response) => {
   }
 };
 
+// this is the function that changes and persists the sign-up status
 export const updateRegistration = async (req: Request, res: Response) => {
   const { id: eventId, registrationId } = req.params;
 
