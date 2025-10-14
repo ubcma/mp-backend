@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eq, sql} from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
 import { userProfile, userRoleEnum } from "../db/schema/userProfile";
@@ -66,7 +66,24 @@ export const getEventBySlug = async (req: Request, res: Response) => {
     }
 
     const [fetchedEvent] = await db
-      .select()
+      .select({
+        id: event.id,
+        title: event.title,
+        slug: event.slug,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        location: event.location,
+        price: event.price,
+        description: event.description,
+        imageUrl: event.imageUrl,
+        isVisible: event.isVisible,
+        attendeeCap: event.attendeeCap,
+        currentAttendeeCount: sql<number>`(
+          SELECT COUNT(*)::int
+          FROM event_registration
+          WHERE event_registration.event_id = ${event.id}
+        )`,
+      })
       .from(event)
       .where(eq(event.slug, slug))
       .limit(1);
@@ -92,10 +109,10 @@ export const getEventBySlug = async (req: Request, res: Response) => {
     return res.json({
       event: fetchedEvent,
       questions: eventQuestions,
-      tags: tagRows.map((t) => t.name),
+      tags: tagRows.map((t) => t.name).filter(Boolean),
     });
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("Error fetching event:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
