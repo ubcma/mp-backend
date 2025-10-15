@@ -78,6 +78,7 @@ export const getEventBySlug = async (req: Request, res: Response) => {
         imageUrl: event.imageUrl,
         isVisible: event.isVisible,
         attendeeCap: event.attendeeCap,
+        membersOnly: event.membersOnly,
         currentAttendeeCount: sql<number>`(
           SELECT COUNT(*)::int
           FROM event_registration
