@@ -3,7 +3,7 @@ import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
 import { db } from "../db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { userProfile } from "../db/schema/userProfile";
 import { transaction } from "../db/schema/transaction";
 import { event as eventsTable } from "../db/schema/event"; 
@@ -155,7 +155,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   const data = JSON.parse(dataStr);
 
 
-  // Change user role to Member (if not already)
+  // Change user role to Member 
   if (data.purchaseType === "membership") {
     await db
       .update(userProfile)
@@ -166,6 +166,28 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
       .where(eq(userProfile.userId, data.userId));
     console.log('Updated Member Profile')
   }
+
+  if (data.purchaseType === "event" && data.eventId) {
+
+  const [result] = await db
+    .select({ count: sql<number>`COUNT(${eventRegistration.id})::int` })
+    .from(eventRegistration)
+    .where(eq(eventRegistration.eventId, Number(data.eventId)));
+
+  const currentCount = result?.count ?? 0;
+
+  const [evt] = await db
+    .select({ attendeeCap: eventsTable.attendeeCap })
+    .from(eventsTable)
+    .where(eq(eventsTable.id, Number(data.eventId)))
+    .limit(1);
+
+  const cap = evt?.attendeeCap ?? null;
+
+  if (cap && currentCount >= cap) {
+    throw new Error("Event is full");
+  }
+}
 
   //Insert into eventRegistration (directly)
   if (data.purchaseType === "event" && data.eventId) {
