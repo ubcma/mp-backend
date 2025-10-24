@@ -1,6 +1,8 @@
 // src/utils/emailService.ts
+
 import { SendEmailCommand } from "@aws-sdk/client-sesv2";
 import sesClient from "../aws/sesClient";
+
 
 interface EmailParams {
   to: string;

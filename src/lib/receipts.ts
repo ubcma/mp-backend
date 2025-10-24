@@ -103,6 +103,8 @@ export async function sendReceiptEmail(opts: { //single options object to send a
   const defaultTicketCode = opts.paymentIntentId
     ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
     : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
+  
+    const qrImageUrl = `${process.env.BACKEND_URL}/qr/${defaultTicketCode}.png`;
 
 
   const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
@@ -116,7 +118,7 @@ export async function sendReceiptEmail(opts: { //single options object to send a
     ticket: {
       code: defaultTicketCode,
       seat: null,
-      qrImageUrl: null, // plug if you host 
+      qrImageUrl: qrImageUrl, // plug if you host 
     },
   });
 
