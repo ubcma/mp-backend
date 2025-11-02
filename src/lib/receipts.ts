@@ -6,7 +6,6 @@ import { event as eventsTable } from "../db/schema/event";
 import { sendEmail } from "../lib/emailService";
 import { membershipReceiptTemplate, eventReceiptWithTicketTemplate } from "../aws/emailTemplates";
 import { Redis } from "ioredis";
-import { uploadFileToS3 } from "../aws/s3Client"; // adjust path if needed
 
 const redis = new Redis(`${process.env.REDIS_URL}?family=0`);
 
@@ -16,8 +15,6 @@ type Currency = "cad" | "usd";
 type EmailOptions = {
 
 }
-
-// generates ticket code, uploads QR to S3, sends email with ticket link
 
 export async function sendReceiptEmail(opts: { //single options object to send all arguments  
   userId: string;
@@ -102,52 +99,26 @@ export async function sendReceiptEmail(opts: { //single options object to send a
     }
   }
 
-// Generate a ticket code for both paid and unpaid scenarios 
-const defaultTicketCode = opts.paymentIntentId
-  ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
-  : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
+  // Generate a ticket code for both paid and unpaid scenarios 
+  const defaultTicketCode = opts.paymentIntentId
+    ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
+    : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
 
-let qrProxyUrl: string | null = null;
-try {
-  // Use CommonJS require for qrcode
-  const QRCode = require("qrcode");
 
-  // Generate QR image buffer
-  const qrBuffer = await QRCode.toBuffer(defaultTicketCode, {
-    type: "png",
-    width: 300,
-    errorCorrectionLevel: "H",
+  const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
+    name: user?.name ?? null,
+    email: to, // show recipient in email body
+    amountInCents,
+    currency,
+    paymentIntentId: opts.paymentIntentId ?? null,
+    purchaseDateISO, 
+    event: eventMeta,
+    ticket: {
+      code: defaultTicketCode,
+      seat: null,
+      qrImageUrl: null, // plug if you host 
+    },
   });
-
-  // Upload QR to private S3
-  await uploadFileToS3({
-    key: `tickets/${defaultTicketCode}.png`,
-    body: qrBuffer,
-    contentType: "image/png",
-    acl: "private",
-  });
-
-  // Build proxy URL (served via Express, not S3)
-  qrProxyUrl = `${process.env.FRONTEND_ORIGIN || process.env.BACKEND_URL}/api/qr/${defaultTicketCode}`;
-
-} catch (err) {
-  console.error("[receipts] Failed to generate or upload QR:", err);
-}
-
-const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
-  name: user?.name ?? null,
-  email: to,
-  amountInCents,
-  currency,
-  paymentIntentId: opts.paymentIntentId ?? null,
-  purchaseDateISO,
-  event: eventMeta,
-  ticket: {
-    code: defaultTicketCode,
-    seat: null,
-    qrImageUrl: qrProxyUrl, 
-  },
-});
 
   console.log("[receipts] isProd=%s  TEST_RECEIPT_EMAIL=%s  dbEmail=%s  NODE_ENV=%s",
   user?.email,

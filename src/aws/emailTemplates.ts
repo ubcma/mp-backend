@@ -32,11 +32,7 @@ export const renderTicketBlock = (t: {
 }) => `
   <div style="border:1px solid #eee; border-radius:12px; padding:16px; margin:12px 0; background:#fafafa">
     <h3 style="margin-top:0">🎟️ Your Ticket</h3>
-    ${t.qrImageUrl
-      ? `<img src="${t.qrImageUrl}" alt="QR Code" width="180" height="180" 
-          style="display:block;border:none;outline:none;text-decoration:none;width:180px;height:180px;" />`
-      : ""
-    }
+    ${t.qrImageUrl ? `<img src="${t.qrImageUrl}" alt="QR code" style="display:block; max-width:180px; width:100%; height:auto; margin:8px 0;"/>` : ""}
     ${t.code ? `<p style="margin:8px 0;"><strong>Ticket Code:</strong> <span style="font-family:monospace">${t.code}</span></p>` : ""}
     ${t.seat ? `<p style="margin:8px 0;"><strong>Seat:</strong> ${t.seat}</p>` : ""}
     <p style="margin:8px 0; font-size:12px; color:#555">

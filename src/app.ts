@@ -17,7 +17,6 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import emailRouter from "./routes/emailRoutes";
 import morgan from 'morgan';
 import jobRouter from "./routes/jobRoutes";
-import qrRouter from "./routes/qrRoutes";
 
 const app = express();
 
@@ -71,7 +70,6 @@ app.use("/api/users", userRouter);
 app.use("/api/validate-email", validateEmailRouter);
 app.use("/api/email", emailRouter);
 app.use("/api/export", exportRouter);
-app.use("/api/qr", qrRouter);
 
 export default app;
 
