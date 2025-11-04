@@ -46,6 +46,7 @@ export const event = pgTable("event", {
   isVisible: boolean("is_visible"),
   membersOnly: boolean("members_only"),
   attendeeCap: integer("attendee_cap"),
+  pricingTier: text("pricing_tier"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),

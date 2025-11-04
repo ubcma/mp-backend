@@ -3,8 +3,6 @@ import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
-import { userProfile, userRoleEnum } from "../db/schema/userProfile";
-import { users } from "../db/schema/auth";
 import {
   CreateEventInput,
   DeleteEventInput,
@@ -30,6 +28,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
         imageUrl: event.imageUrl,
         isVisible: event.isVisible,
         attendeeCap: event.attendeeCap,
+        pricingTier: event.pricingTier,
         currentAttendeeCount: sql<number>`(
           SELECT COUNT(*)::int
           FROM event_registration
@@ -79,6 +78,7 @@ export const getEventBySlug = async (req: Request, res: Response) => {
         isVisible: event.isVisible,
         attendeeCap: event.attendeeCap,
         membersOnly: event.membersOnly,
+        pricingTier: event.pricingTier,
         currentAttendeeCount: sql<number>`(
           SELECT COUNT(*)::int
           FROM event_registration
@@ -154,6 +154,7 @@ export const createEvent = async (req: Request, res: Response) => {
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
         attendeeCap: data.attendeeCap || null,
+        pricingTier: data.pricingTier || null,
         startsAt: startsAt,
         endsAt: endsAt,
         createdAt: new Date(),
@@ -237,6 +238,7 @@ export const updateEventById = async (req: Request, res: Response) => {
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
         attendeeCap: data.attendeeCap || null,
+        pricingTier: data.pricingTier || null,
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),
