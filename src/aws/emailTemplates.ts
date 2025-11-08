@@ -41,7 +41,6 @@ export const renderTicketBlock = (t: {
   </div>
 `;
 
-// Combined event with ticket (embedded)
 export const eventReceiptWithTicketTemplate = (p: {
   name?: string | null;
   email: string;
@@ -52,40 +51,89 @@ export const eventReceiptWithTicketTemplate = (p: {
   event: { name: string; startAtISO?: string | null; endAtISO?: string | null; location?: string | null };
   ticket?: { code?: string | null; seat?: string | null; qrImageUrl?: string | null };
 }) => {
-  const subject = `Your Ticket — ${p.event.name}`;
+  const subject = `🎟 Your Ticket — ${p.event.name}`;
 
   const when = [
-    p.event.startAtISO ? `<li><strong>Starts:</strong> ${new Date(p.event.startAtISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}</li>` : "",
-    p.event.endAtISO ? `<li><strong>Ends:</strong> ${new Date(p.event.endAtISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}</li>` : "",
+    p.event.startAtISO
+      ? `<li><strong>Starts:</strong> ${new Date(p.event.startAtISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}</li>`
+      : "",
+    p.event.endAtISO
+      ? `<li><strong>Ends:</strong> ${new Date(p.event.endAtISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}</li>`
+      : "",
     p.event.location ? `<li><strong>Location:</strong> ${p.event.location}</li>` : "",
   ].join("");
 
-
   const htmlBody = `
-  <div style="${base}">
-    <h1 style="margin-bottom:4px">🎫 Ticket Confirmation</h1>
-    <p style="margin-top:0">Thanks${p.name ? `, ${p.name}` : ""}! Your ${p.amountInCents > 0 ? "purchase" : "registration"} is confirmed.</p>
+  <div style="font-family:'Onest',-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+              color:#111; line-height:1.6; background-color:#f9fafb; padding:32px 0;">
+    <center>
+      <table style="max-width:580px; width:100%; background:#fff; border-radius:12px; 
+                    box-shadow:0 3px 10px rgba(0,0,0,0.06); overflow:hidden; border-collapse:separate;">
+        <tr>
+          <td style="padding:32px; text-align:center; border-bottom:3px solid #E11D48;">
+            <h1 style="color:#E11D48; font-size:28px; margin:0 0 8px;">🎫 Ticket Confirmation</h1>
+            <p style="margin:0; color:#444;">Thanks${p.name ? `, <strong>${p.name}</strong>` : ""}! 
+              Your ${p.amountInCents > 0 ? "purchase" : "registration"} is confirmed.</p>
+          </td>
+        </tr>
 
-    <h2 style="margin-bottom:6px">${p.event.name}</h2>
-    <ul style="margin-top:0">${when}</ul>
+        <tr>
+          <td style="padding:24px 32px;">
+            <h2 style="margin:0 0 8px; color:#E11D48; font-size:22px;">${p.event.name}</h2>
+            <ul style="list-style:none; padding:0; margin:0 0 16px; color:#444;">
+              ${when}
+            </ul>
 
-    ${renderTicketBlock(p.ticket ?? {})}
+            <div style="background:#fff7f8; border:1px solid #f2d8dc; 
+                        border-radius:10px; padding:20px; margin:24px 0;">
+              <h3 style="margin:0 0 12px; color:#E11D48;">🎟 Your Ticket</h3>
+              ${p.ticket?.qrImageUrl
+                ? `<img src="${p.ticket.qrImageUrl}" alt="QR Code" width="180" height="180" 
+                    style="display:block; margin:12px auto; border-radius:8px;"/>`
+                : ""}
+              ${p.ticket?.code
+                ? `<p style="margin:6px 0; font-size:15px; text-align:center;">
+                     <strong>Ticket Code:</strong> 
+                     <span style="font-family:monospace; color:#E11D48;">${p.ticket.code}</span>
+                   </p>`
+                : ""}
+              ${p.ticket?.seat
+                ? `<p style="margin:6px 0; text-align:center;"><strong>Seat:</strong> ${p.ticket.seat}</p>`
+                : ""}
+              <p style="margin:10px 0 0; font-size:13px; color:#666; text-align:center;">
+                Present this ticket (code or QR) at entry. Keep this email handy.
+              </p>
+            </div>
 
-    <h3 style="margin-bottom:6px">Transaction Details</h3>
-    <ul style="margin-top:0">
-      <li><strong>Amount Paid:</strong> ${fmtAmt(p.amountInCents, p.currency)}</li>
-      ${p.paymentIntentId ? `<li><strong>Transaction ID:</strong> ${p.paymentIntentId}</li>` : ""}  
-      <li><strong>Purchase Date:</strong> ${new Date(p.purchaseDateISO).toLocaleString("en-CA",{ timeZone:"America/Vancouver" })}</li>
-      <li><strong>Receipt sent to:</strong> ${p.email}</li>
-    </ul>
+            <h3 style="margin-bottom:8px; color:#E11D48;">💳 Transaction Details</h3>
+            <ul style="list-style:none; padding:0; margin:0; color:#444; font-size:15px;">
+              <li><strong>Amount Paid:</strong> ${fmtAmt(p.amountInCents, p.currency)}</li>
+              ${p.paymentIntentId ? `<li><strong>Transaction ID:</strong> ${p.paymentIntentId}</li>` : ""}
+              <li><strong>Purchase Date:</strong> 
+                ${new Date(p.purchaseDateISO).toLocaleString("en-CA",{timeZone:"America/Vancouver"})}</li>
+              <li><strong>Receipt sent to:</strong> ${p.email}</li>
+            </ul>
 
-    <p style="margin:16px 0"><em>All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.</em></p>
-    <hr/>
-    <p style="font-size:12px;color:#666"> Copyright UBCMA 2025 </p>
-  </div>`;
+            <p style="margin:20px 0 0; font-size:13px; color:#777;">
+              <em>All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.</em>
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px; text-align:center; background:#fef2f3; color:#E11D48;
+                     font-size:13px; border-top:1px solid #f2d8dc;">
+            <strong>UBCMA Membership Portal</strong><br/>
+            <span style="color:#999;">Copyright © 2025 UBCMA</span>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </div>
+  `;
 
   const textBody = [
-    `Ticket Confirmation — ${p.event.name}`,
+    `🎫 Ticket Confirmation — ${p.event.name}`,
     `Thanks${p.name ? `, ${p.name}` : ""}! Your ${p.amountInCents > 0 ? "purchase" : "registration"} is confirmed.`,
     "",
     "Event:",
@@ -104,12 +152,11 @@ export const eventReceiptWithTicketTemplate = (p: {
     p.paymentIntentId ? `  Transaction ID: ${p.paymentIntentId}` : "",
     `  Purchase Date: ${new Date(p.purchaseDateISO).toLocaleString("en-CA", { timeZone: "America/Vancouver" })}`,
     `  Receipt sent to: ${p.email}`,
-    "",
-    `All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.`,
   ].filter(Boolean).join("\n");
 
   return { subject, htmlBody, textBody };
 };
+
 
 
 export const membershipReceiptTemplate = (p: {
