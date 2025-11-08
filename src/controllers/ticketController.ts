@@ -1,15 +1,16 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eventRegistration } from "../db/schema/event";
+import { eventRegistration, event } from "../db/schema/event";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { validateAdmin } from "../lib/validateSession";
+
 
 export const ticketScanHandler = async (req: Request, res: Response) => {
   const { ticketCode } = req.params;
   if (!ticketCode) return res.status(400).send("Missing ticket code");
 
-  // 🔐 Authenticate the user from the BetterAuth session cookie
+
   const headers = new Headers();
   if (req.headers.cookie) headers.append("cookie", req.headers.cookie);
 
@@ -35,7 +36,6 @@ export const ticketScanHandler = async (req: Request, res: Response) => {
       `);
     }
 
-    // ✅ Check that the user is an admin
     validateAdmin(session.user.id);
 
   } catch (error) {
@@ -57,10 +57,16 @@ export const ticketScanHandler = async (req: Request, res: Response) => {
     `);
   }
 
-  // 🎟 Find the ticket in the DB
+  
   const [registration] = await db
-    .select()
+    .select({
+      id: eventRegistration.id,
+      ticketCode: eventRegistration.ticketCode,
+      eventSlug: event.slug, 
+      eventTitle: event.title,
+    })
     .from(eventRegistration)
+    .leftJoin(event, eq(eventRegistration.eventId, event.id))
     .where(eq(eventRegistration.ticketCode, ticketCode))
     .limit(1);
 
@@ -83,7 +89,7 @@ export const ticketScanHandler = async (req: Request, res: Response) => {
     `);
   }
 
-  // ✅ Mark ticket as checked-in
+  //
   await db
     .update(eventRegistration)
     .set({
@@ -97,11 +103,16 @@ export const ticketScanHandler = async (req: Request, res: Response) => {
     timeZone: "America/Vancouver",
   });
 
+
+  const redirectUrl = registration.eventSlug
+    ? `https://app.ubcma.ca/manage-events/${registration.eventSlug}`
+    : `https://app.ubcma.ca/admin-dashboard`;
+
   // 🎉 Render the animation confirmation
   return res.send(`
     <html>
       <head>
-        <meta http-equiv="refresh" content="3;url=https://app.ubcma.ca/admin-dashboard" />
+        <meta http-equiv="refresh" content="3;url=${redirectUrl}"  />
         <title>UBCMA — Ticket Checked In</title>
         <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
