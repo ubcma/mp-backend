@@ -16,7 +16,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     if (!session) return res.status(401).json({ error: "Unauthorized" });
 
     const userId = session.user.id;
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const page = Math.max(parseInt(req.query.page as string) || 1, 1);
     const pageSize = Math.min(parseInt(req.query.pageSize as string) || 10, 100);
@@ -91,6 +91,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    if ((error instanceof Error) && error.message?.includes("Forbidden")) {
+      return res.status(403).json({ error: "Forbidden: Admins only" });
+    }
     console.error("Failed to fetch users:", error);
     res.status(500).json({ message: "Failed to fetch users" });
   }
@@ -106,7 +109,7 @@ export const updateUserRole = async (req: Request, res: Response) => {
     if (!session) return res.status(401).json({ error: "Unauthorized" });
 
     const adminId = session.user.id;
-    validateAdmin(adminId);
+    await validateAdmin(adminId);
 
     // requested user, requested role change 
     const { userId } = req.params; 

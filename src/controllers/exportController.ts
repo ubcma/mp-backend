@@ -18,7 +18,7 @@ export const exportUsers = async (req: Request, res: Response) => {
     if (!session) return res.status(401).json({ error: "Unauthorized" });
 
     const userId = session.user.id;
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const exportType = (req.query.exportType as string) || "all";
     const role = (req.query.role as string) || null;

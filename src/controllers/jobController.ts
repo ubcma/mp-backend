@@ -52,7 +52,7 @@ export const updateJob = async (req: Request, res: Response) => {
     }
 
     const userId = session.user.id;
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const { id, ...data } = req.body;
 
@@ -105,7 +105,7 @@ export const deleteJob = async (req: Request, res: Response) => {
     }
 
     const userId = session.user.id;
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const { id } = req.body;
 
@@ -151,7 +151,7 @@ export const createJob = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: CreateJobInput = req.body;
 

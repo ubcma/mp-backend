@@ -36,7 +36,7 @@ export const ticketScanHandler = async (req: Request, res: Response) => {
       `);
     }
 
-    validateAdmin(session.user.id);
+    await validateAdmin(session.user.id);
 
   } catch (error) {
     console.error("[ticketScanHandler] Admin validation failed:", error);
