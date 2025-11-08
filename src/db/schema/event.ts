@@ -68,19 +68,32 @@ export const eventTag = pgTable(
   (table) => [primaryKey({ columns: [table.eventId, table.tagId] })]
 );
 
+export const registrationStatusEnum = pgEnum("registration_status", [
+  "incomplete",
+  "registered",
+  "checkedIn",
+]);
+
 export const eventRegistration = pgTable("event_registration", {
   id: bigint("id", { mode: "number" }).primaryKey().notNull()
   .default(sql`DEFAULT`),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  status: text("status")
+
+  status: registrationStatusEnum("status")
     .notNull()
-    .default(sql`registered`),
+    .default("registered"),
+    
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
   stripeTransactionId: text("stripe_transaction_id"),
+
+  ticketCode: text("ticket_code").unique(), // ticketcode
+
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),

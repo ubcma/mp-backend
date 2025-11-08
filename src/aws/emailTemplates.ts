@@ -81,7 +81,7 @@ export const eventReceiptWithTicketTemplate = (p: {
 
     <p style="margin:16px 0"><em>All ${p.amountInCents > 0 ? "ticket purchases" : "registrations"} are final.</em></p>
     <hr/>
-    <p style="font-size:12px;color:#666">Need help? Reply to this email.</p>
+    <p style="font-size:12px;color:#666"> Copyright UBCMA 2025 </p>
   </div>`;
 
   const textBody = [
