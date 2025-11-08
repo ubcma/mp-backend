@@ -136,7 +136,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: CreateEventInput = req.body;
     const startsAt = new Date(data.startsAt);
@@ -211,7 +211,7 @@ export const updateEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: UpdateEventInput = req.body;
 
@@ -274,7 +274,7 @@ export const deleteEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: DeleteEventInput = req.body;
 

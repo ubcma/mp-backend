@@ -4,8 +4,6 @@ import { eq, and } from "drizzle-orm";
 import { eventRegistration } from "../db/schema/event";
 import { uploadFileToS3 } from "../aws/s3Client";
 
-const backendUrl =  "https://api-dev.ubcma.ca"; // hardcoded for convenience now 
-
 export async function generateTicket({
   userId,
   eventId,
@@ -22,7 +20,7 @@ export async function generateTicket({
 
   let qrProxyUrl: string | null = null;
   let qrBuffer: Buffer; // define as non-nullable now
-  const scanUrl = `${backendUrl}/api/ticket/scan/${ticketCode}`;
+  const scanUrl = `${process.env.BACKEND_URL}/api/ticket/scan/${ticketCode}`;
 
   try {
     const QRCode = require("qrcode");

@@ -27,7 +27,7 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     // Verify event exists
     const [eventExists] = await db
