@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { userProfile } from "../db/schema/userProfile";
-import { users } from "../db/schema/auth";
+import { user, userProfile } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm/sql";
 import { auth } from "../lib/auth";
@@ -32,8 +31,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     if (search) {
       whereClauses.push(
-        sql`(LOWER(${users.name}) LIKE ${"%" + search + "%"} 
-          OR LOWER(${users.email}) LIKE ${"%" + search + "%"})`
+        sql`(LOWER(${user.name}) LIKE ${"%" + search + "%"} 
+          OR LOWER(${user.email}) LIKE ${"%" + search + "%"})`
       );
     }
 
@@ -47,8 +46,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     const totalCountQuery = db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId));
+      .from(user)
+      .leftJoin(userProfile, eq(user.id, userProfile.userId));
 
     if (whereCondition) totalCountQuery.where(whereCondition);
 
@@ -57,9 +56,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     let userQuery = db
       .select({
-        userId: users.id,
-        name: users.name,
-        email: users.email,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
         role: userProfile.role,
         faculty: userProfile.faculty,
         major: userProfile.major,
@@ -71,8 +70,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
         interests: userProfile.interests,
         onboardingComplete: userProfile.onboardingComplete,
       })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
+      .from(user)
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
       .limit(pageSize)
       .offset(offset);
 

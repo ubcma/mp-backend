@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { deleteOldFile } from "../lib/uploadthing";
 import { validateAdmin } from "../lib/validateSession";
-import { jobs } from "../db/schema/job";
+import { jobs } from "../db/schema";
 import { CreateJobInput } from "../types/job";
 
 export const getAllJobs = async (req: Request, res: Response) => {

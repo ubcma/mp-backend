@@ -1,9 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { users } from "../db/schema/auth";
-import { transaction } from "../db/schema/transaction";
-import { userProfile } from "../db/schema/userProfile";
-import { count, eq, sql } from "drizzle-orm";
+import { userProfile, transaction } from "../db/schema";
+import { eq, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { validateAdmin } from "../lib/validateSession";
 
@@ -37,17 +35,17 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     // Fetch paginated transactions
     const tx = await db
       .select({
-        id: transaction.transaction_id,
+        id: transaction.transactionId,
         userName: userProfile.name,
         email: userProfile.email,
         userId: transaction.userId,
-        purchaseType: transaction.purchase_type,
+        purchaseType: transaction.purchaseType,
         amount: transaction.amount,
         currency: transaction.currency,
-        paymentMethod: transaction.payment_method_type,
-        paymentIntentId: transaction.stripe_payment_intent_id,
-        eventId: transaction.event_id,
-        paidAt: transaction.paid_at,
+        paymentMethod: transaction.paymentMethodType,
+        paymentIntentId: transaction.stripePaymentIntentId,
+        eventId: transaction.eventId,
+        paidAt: transaction.paidAt,
         status: transaction.status,
       })
       .from(transaction)

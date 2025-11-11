@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
-import { event, eventTag, question, tag } from "../db/schema/event";
+import { event, eventTag, question, tag } from "../db/schema";
 import { auth } from "../lib/auth";
 import {
   CreateEventInput,

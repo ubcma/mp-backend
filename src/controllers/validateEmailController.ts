@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { accounts, users } from "../db/schema/auth";
+import { account, user} from "../db/schema";
 import { eq } from "drizzle-orm";
 
 type validateEmailResponse = {
@@ -19,13 +19,13 @@ export const validateEmail = async (req: Request, res: Response) => {
 
     const userWithAccounts = await db
       .select({
-        userId: users.id,
-        email: users.email,
-        provider: accounts.providerId,
+        userId: user.id,
+        email: user.email,
+        provider: account.providerId,
       })
-      .from(users)
-      .leftJoin(accounts, eq(users.id, accounts.userId))
-      .where(eq(users.email, email));
+      .from(user)
+      .leftJoin(account, eq(user.id, account.userId))
+      .where(eq(user.email, email));
 
     if (userWithAccounts.length === 0) {
       return res.status(200).json({

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eventRegistration, event } from "../db/schema/event";
+import { eventRegistration, event } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { validateAdmin } from "../lib/validateSession";

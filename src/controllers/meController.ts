@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { userProfile } from "../db/schema/userProfile";
+import { userProfile, user } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import { isValidField } from "../lib/utils";
 import { UpdateUserProfileInput } from "../types/user";
@@ -23,9 +22,9 @@ export const getMe = async (req: Request, res: Response) => {
     const userId = session.user.id;
     const result = await db
       .select({
-        userId: users.id,
-        name: users.name,
-        email: users.email,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
         role: userProfile.role,
         faculty: userProfile.faculty,
         major: userProfile.major,
@@ -37,30 +36,30 @@ export const getMe = async (req: Request, res: Response) => {
         interests: userProfile.interests,
         onboardingComplete: userProfile.onboardingComplete,
       })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
+      .from(user)
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
+      .where(eq(user.id, userId))
       .limit(1);
 
     if (!result.length) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const user = result[0];
+    const retrievedUser = result[0];
     return res.json({
-      userId: String(user.userId),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      faculty: user.faculty,
-      major: user.major,
-      year: user.year,
-      avatar: user.avatar,
-      bio: user.bio,
-      linkedinUrl: user.linkedinUrl,
-      diet: user.diet,
-      interests: user.interests,
-      onboardingComplete: user.onboardingComplete,
+      userId: String(retrievedUser.userId),
+      name: retrievedUser.name,
+      email: retrievedUser.email,
+      role: retrievedUser.role,
+      faculty: retrievedUser.faculty,
+      major: retrievedUser.major,
+      year: retrievedUser.year,
+      avatar: retrievedUser.avatar,
+      bio: retrievedUser.bio,
+      linkedinUrl: retrievedUser.linkedinUrl,
+      diet: retrievedUser.diet,
+      interests: retrievedUser.interests,
+      onboardingComplete: retrievedUser.onboardingComplete,
     });
   } catch (error) {
     console.error("Error fetching user:", error);

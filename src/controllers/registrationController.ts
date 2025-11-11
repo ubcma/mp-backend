@@ -2,9 +2,7 @@ import { Request, Response } from "express";
 import { db } from "../db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
-import { userProfile } from "../db/schema/userProfile";
-import { users } from "../db/schema/auth";
-import { event, eventRegistration, eventRegistrationResponse, question } from "../db/schema/event";
+import { userProfile, user, event, eventRegistration, eventRegistrationResponse, question } from "../db/schema"
 import { validateAdmin } from "../lib/validateSession";
 import { sendReceiptEmail } from "../lib/receipts";
 
@@ -50,17 +48,17 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
         stripeTransactionId: eventRegistration.stripeTransactionId,
         registeredAt: eventRegistration.createdAt,
         // User details
-        userEmail: users.email,
-        userName: users.name,
-        userImage: users.image,
+        userEmail: user.email,
+        userName: user.name,
+        userImage: user.image,
         // User profile details
         name: userProfile.name,
         year: userProfile.year,
         faculty: userProfile.faculty,
       })
       .from(eventRegistration)
-      .leftJoin(users, eq(eventRegistration.userId, users.id))
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
+      .leftJoin(user, eq(eventRegistration.userId, user.id))
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
       .where(eq(eventRegistration.eventId, parseInt(eventId)));
 
     // Get all questions for this event
@@ -247,16 +245,16 @@ export const getRegistrationById = async (req: Request, res: Response) => {
     const userId = session.user.id;
 
     // Check if user is admin or the owner of the registration
-    const [user] = await db
+    const [retrievedUser] = await db
       .select({
         userRole: userProfile.role,
       })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
+      .from(user)
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
+      .where(eq(user.id, userId))
       .limit(1);
 
-    const userRole = user?.userRole;
+    const userRole = retrievedUser?.userRole;
 
     // Get the registration with user details
     const [registrationData] = await db
@@ -267,17 +265,17 @@ export const getRegistrationById = async (req: Request, res: Response) => {
         stripeTransactionId: eventRegistration.stripeTransactionId,
         registeredAt: eventRegistration.createdAt,
         // User details
-        userEmail: users.email,
-        userName: users.name,
-        userImage: users.image,
+        userEmail: user.email,
+        userName: user.name,
+        userImage: user.image,
         // User profile details
         name: userProfile.name,
         year: userProfile.year,
         faculty: userProfile.faculty,
       })
       .from(eventRegistration)
-      .leftJoin(users, eq(eventRegistration.userId, users.id))
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
+      .leftJoin(user, eq(eventRegistration.userId, user.id))
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
       .where(
         and(
           eq(eventRegistration.id, parseInt(registrationId)),
@@ -345,16 +343,16 @@ export const updateRegistration = async (req: Request, res: Response) => {
     const userId = session.user.id;
 
     // Check if user is admin
-    const [user] = await db
+    const [retrievedUser] = await db
       .select({
         userRole: userProfile.role,
       })
-      .from(users)
-      .leftJoin(userProfile, eq(users.id, userProfile.userId))
-      .where(eq(users.id, userId))
+      .from(user)
+      .leftJoin(userProfile, eq(user.id, userProfile.userId))
+      .where(eq(user.id, userId))
       .limit(1);
 
-    const userRole = user?.userRole;
+    const userRole = retrievedUser?.userRole;
 
     // For now, only admins can update registrations
     if (userRole !== "Admin") {
