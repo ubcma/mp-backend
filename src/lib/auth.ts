@@ -7,7 +7,10 @@ import { userProfile } from "../db/schema/userProfile";
 import { eq } from "drizzle-orm";
 import { sendEmail } from "./emailService";
 import { Request } from "express";
-import { emailVerificationTemplate, forgotPasswordTemplate } from "../aws/emailTemplates";
+import {
+  emailVerificationTemplate,
+  forgotPasswordTemplate,
+} from "../aws/emailTemplates";
 
 export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   .on("error", (err) => {
@@ -49,16 +52,14 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL!,
   emailAndPassword: {
     enabled: true,
-    // ENABLE CODE BELOW ONCE EMAIL IS CONFIGURED
     requireEmailVerification: true,
-    forgotPasswordEnabled: true,
     sendResetPassword: async ({ user, url }) => {
       try {
         const { subject, htmlBody } = forgotPasswordTemplate(url);
         await sendEmail({ to: user.email, subject, htmlBody });
         console.log(`✅ Password reset email sent to ${user.email}`);
       } catch (error) {
-        console.error('Error sending password reset email:', error);
+        console.error("Error sending password reset email:", error);
         throw error;
       }
     },
@@ -124,13 +125,13 @@ export const auth = betterAuth({
         await sendEmail({ to: user.email, subject, htmlBody });
         console.log(`✅ Verification email sent to ${user.email}`);
       } catch (error) {
-        console.error('Error sending verification email:', error);
+        console.error("Error sending verification email:", error);
         throw error;
       }
     },
-    sendOnSignUp: true, 
+    sendOnSignUp: true,
     autoSignInAfterVerification: true,
-    async afterEmailVerification({user, request}: {user: User, request: Request}) {
+    async afterEmailVerification(user, request) {
       console.log(`${user.email} has been successfully verified!`);
     },
   },
