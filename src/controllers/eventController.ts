@@ -155,7 +155,7 @@ export const createEvent = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
-        nonMemberPrice: data.nonMemberPrice || null,
+        nonMemberPrice: data.nonMemberPrice,
         attendeeCap: data.attendeeCap || null,
         pricingTier: data.pricingTier || null,
         startsAt: startsAt,

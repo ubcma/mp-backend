@@ -13,10 +13,7 @@ import { eventRegistration } from "../db/schema/event";
 import { sendReceiptEmail } from "../lib/receipts";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // initialize stripe object to create payment intent, utilize with backend webhook
-  apiVersion: "2025-07-30.basil", // check api version via stripe dashboard
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 console.log(
   "Loading Stripe with key:",
