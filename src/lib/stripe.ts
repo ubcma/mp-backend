@@ -77,9 +77,10 @@ export async function createPaymentIntent(
 
     if (!evt) throw httpError(404, "event_not_found");
     if (evt.price == null) throw httpError(409, "event_price_missing");
+    if (evt.nonMemberPrice == null) throw httpError(409, "event_non_member_price_missing");
 
     
-    amountInCents = Math.round(Number(evt.price) * 100);
+    amountInCents = user.role === 'Basic' ? Math.round(Number(evt.nonMemberPrice) * 100) : Math.round(Number(evt.price) * 100);
     finalCurrency = "cad"; 
     meta.eventId = String(eventId); //
   } else if (purchaseType === "membership") {
