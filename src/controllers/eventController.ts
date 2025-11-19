@@ -29,6 +29,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
         isVisible: event.isVisible,
         attendeeCap: event.attendeeCap,
         pricingTier: event.pricingTier,
+        nonMemberPrice: event.nonMemberPrice,
         currentAttendeeCount: sql<number>`(
           SELECT COUNT(*)::int
           FROM event_registration
@@ -79,6 +80,7 @@ export const getEventBySlug = async (req: Request, res: Response) => {
         attendeeCap: event.attendeeCap,
         membersOnly: event.membersOnly,
         pricingTier: event.pricingTier,
+        nonMemberPrice: event.nonMemberPrice,
         currentAttendeeCount: sql<number>`(
           SELECT COUNT(*)::int
           FROM event_registration
@@ -153,6 +155,7 @@ export const createEvent = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
+        nonMemberPrice: data.nonMemberPrice || null,
         attendeeCap: data.attendeeCap || null,
         pricingTier: data.pricingTier || null,
         startsAt: startsAt,
@@ -242,6 +245,7 @@ export const updateEventById = async (req: Request, res: Response) => {
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),
+        nonMemberPrice: data.nonMemberPrice || 0,
       })
       .where(eq(event.id, data.id))
       .returning();
