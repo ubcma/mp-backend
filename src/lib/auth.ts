@@ -130,10 +130,7 @@ export const auth = betterAuth({
       }
     },
     sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    async afterEmailVerification(user, request) {
-      console.log(`${user.email} has been successfully verified!`);
-    },
+    autoSignInAfterVerification: true
   },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
