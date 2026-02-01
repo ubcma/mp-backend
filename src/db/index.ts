@@ -3,10 +3,12 @@ import { Pool } from 'pg';
 
 import * as auth from './schema/auth';
 import * as transactionSchema from './schema/transaction';
+import * as alumniSchema from './schema/alumniProfile';
 //import * as eventSchema from './schema/event';
 const schema = {
   ...auth,
   ...transactionSchema,
+  ...alumniSchema,
   //...eventSchema
 };
 
