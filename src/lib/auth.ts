@@ -33,7 +33,9 @@ export const getAllowedOrigins = () => {
     process.env.FRONTEND_URL!,
     "https://app.ubcma.ca",
     "https://preview.ubcma.ca",
+    "https://network.ubcma.ca",
     "http://localhost:3000",
+    "http://localhost:3001",
   ];
 
   if (process.env.VERCEL_URL) {
