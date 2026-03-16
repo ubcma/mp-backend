@@ -24,13 +24,14 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
   });
 
 const isProduction = process.env.NODE_ENV === "production";
-const isVercelPreview = process.env.VERCEL_ENV === "preview";
 const isDevelopment = process.env.NODE_ENV === "development";
-const isSecureContext = isProduction || isVercelPreview;
+const cookieSameSite = (process.env.COOKIE_SAME_SITE as "lax" | "none") || "lax";
+const isSecureContext = isProduction || cookieSameSite === "none";
 
 export const getAllowedOrigins = () => {
   const origins = [
     process.env.FRONTEND_URL!,
+    process.env.NETWORK_URL!,
     "https://app.ubcma.ca",
     "https://preview.ubcma.ca",
     "https://network.ubcma.ca",
@@ -38,12 +39,10 @@ export const getAllowedOrigins = () => {
     "http://localhost:3001",
   ];
 
-  if (process.env.VERCEL_URL) {
-    origins.push(`https://${process.env.VERCEL_URL}`);
-  }
-
-  if (process.env.VERCEL_BRANCH_URL) {
-    origins.push(`https://${process.env.VERCEL_BRANCH_URL}`);
+  if (process.env.ADDITIONAL_ORIGINS) {
+    origins.push(
+      ...process.env.ADDITIONAL_ORIGINS.split(",").map((o) => o.trim())
+    );
   }
 
   return origins.filter(Boolean);
@@ -110,7 +109,7 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       secure: isSecureContext,
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: cookieSameSite,
     },
   },
   rateLimit: {
