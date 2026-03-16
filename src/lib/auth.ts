@@ -110,8 +110,7 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       secure: isSecureContext,
       httpOnly: true,
-      sameSite: isDevelopment ? "lax" : "none",
-      partitioned: isProduction,
+      sameSite: "lax",
     },
   },
   rateLimit: {
