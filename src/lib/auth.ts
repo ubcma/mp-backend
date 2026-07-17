@@ -53,7 +53,7 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL!,
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    requireEmailVerification: process.env.NODE_ENV === "production",
     sendResetPassword: async ({ user, url }) => {
       try {
         const { subject, htmlBody } = forgotPasswordTemplate(url);
