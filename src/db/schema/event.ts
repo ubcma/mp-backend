@@ -1,6 +1,7 @@
 import {
   pgTable,
   bigint,
+  bigserial,
   text,
   timestamp,
   pgEnum,
@@ -27,14 +28,12 @@ export const questionTypeEnum = pgEnum("question_type", [
 ]);
 
 export const tag = pgTable("tag", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   name: text("name").unique().notNull(),
 });
 
 export const event = pgTable("event", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   title: text("title").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
@@ -76,8 +75,7 @@ export const registrationStatusEnum = pgEnum("registration_status", [
 ]);
 
 export const eventRegistration = pgTable("event_registration", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -104,8 +102,7 @@ export const eventRegistration = pgTable("event_registration", {
 });
 
 export const question = pgTable("question", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
@@ -127,8 +124,7 @@ export const question = pgTable("question", {
 });
 
 export const eventRegistrationResponse = pgTable("event_registration_response", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   signupId: bigint("signup_id", { mode: "number" })
     .notNull()
     .references(() => eventRegistration.id, { onDelete: "cascade" }),
