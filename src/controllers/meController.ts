@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema/auth";
 import { auth } from "../lib/auth";
 import { isValidField } from "../lib/utils";
+import { STUDENT_NUMBER_MIN_LENGTH } from "../lib/constants";
 import { UpdateUserProfileInput } from "../types/user";
 import { deleteOldFile } from "../lib/uploadthing";
 
@@ -76,6 +77,7 @@ export async function updateUserProfile(
 ) {
   try {
     let oldAvatarUrl: string | null = null;
+    const studentNumber = data.studentNumber?.trim();
 
     if (data.avatar) {
       const current = await db
@@ -92,9 +94,7 @@ export async function updateUserProfile(
     const [updated] = await db
       .update(userProfile)
       .set({
-        ...(isValidField(data.studentNumber) && {
-          studentNumber: data.studentNumber,
-        }),
+        ...(isValidField(studentNumber) && { studentNumber }),
         ...(isValidField(data.bio) && { bio: data.bio }),
         ...(isValidField(data.avatar) && { avatar: data.avatar }),
         ...(isValidField(data.year) && { year: data.year }),
@@ -138,6 +138,17 @@ export const updateMe = async (req: Request, res: Response) => {
 
     if (!session) {
       return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { studentNumber } = req.body as UpdateUserProfileInput;
+    const trimmedStudentNumber = studentNumber?.trim();
+    if (
+      trimmedStudentNumber &&
+      trimmedStudentNumber.length < STUDENT_NUMBER_MIN_LENGTH
+    ) {
+      return res.status(400).json({
+        error: `Student number must be at least ${STUDENT_NUMBER_MIN_LENGTH} characters.`,
+      });
     }
 
     const updatedUser = await updateUserProfile(session.user.id, req.body);
