@@ -26,6 +26,7 @@ export const getMe = async (req: Request, res: Response) => {
         userId: users.id,
         name: users.name,
         email: users.email,
+        studentNumber: userProfile.studentNumber,
         role: userProfile.role,
         faculty: userProfile.faculty,
         major: userProfile.major,
@@ -51,6 +52,7 @@ export const getMe = async (req: Request, res: Response) => {
       userId: String(user.userId),
       name: user.name,
       email: user.email,
+      studentNumber: user.studentNumber,
       role: user.role,
       faculty: user.faculty,
       major: user.major,
@@ -90,6 +92,9 @@ export async function updateUserProfile(
     const [updated] = await db
       .update(userProfile)
       .set({
+        ...(isValidField(data.studentNumber) && {
+          studentNumber: data.studentNumber,
+        }),
         ...(isValidField(data.bio) && { bio: data.bio }),
         ...(isValidField(data.avatar) && { avatar: data.avatar }),
         ...(isValidField(data.year) && { year: data.year }),

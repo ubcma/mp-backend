@@ -60,6 +60,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         userId: users.id,
         name: users.name,
         email: users.email,
+        studentNumber: userProfile.studentNumber,
         role: userProfile.role,
         faculty: userProfile.faculty,
         major: userProfile.major,
