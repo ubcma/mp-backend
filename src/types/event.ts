@@ -22,6 +22,9 @@ export type CreateEventInput = {
   location: string;
   isVisible: boolean;
   membersOnly: boolean;
+  attendeeCap?: number;
+  pricingTier?: string;
+  nonMemberPrice: number;
   startsAt: Date;
   endsAt: Date;
   questions: QuestionInput[];
@@ -39,6 +42,9 @@ export type UpdateEventInput = {
   endsAt: Date;
   isVisible: boolean;
   membersOnly: boolean;
+  attendeeCap?: number;
+  pricingTier?: string;
+  nonMemberPrice: number;
   questions: QuestionInput[];
 };
 

@@ -1,6 +1,7 @@
 import {
   pgTable,
   bigint,
+  bigserial,
   text,
   timestamp,
   pgEnum,
@@ -27,14 +28,12 @@ export const questionTypeEnum = pgEnum("question_type", [
 ]);
 
 export const tag = pgTable("tag", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   name: text("name").unique().notNull(),
 });
 
 export const event = pgTable("event", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   title: text("title").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
@@ -42,9 +41,12 @@ export const event = pgTable("event", {
   description: text("description"),
   imageUrl: text("image_url"),
   slug: text("slug").notNull(),
-  price: integer("price"),
+  price: integer("price").notNull(),
+  nonMemberPrice: integer("non_member_price").notNull(),
   isVisible: boolean("is_visible"),
   membersOnly: boolean("members_only"),
+  attendeeCap: integer("attendee_cap"),
+  pricingTier: text("pricing_tier"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
@@ -66,19 +68,31 @@ export const eventTag = pgTable(
   (table) => [primaryKey({ columns: [table.eventId, table.tagId] })]
 );
 
+export const registrationStatusEnum = pgEnum("registration_status", [
+  "incomplete",
+  "registered",
+  "checkedIn",
+]);
+
 export const eventRegistration = pgTable("event_registration", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  status: text("status")
+
+  status: registrationStatusEnum("status")
     .notNull()
-    .default(sql`registered`),
+    .default("registered"),
+    
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
   stripeTransactionId: text("stripe_transaction_id"),
+
+  ticketCode: text("ticket_code").unique(), // ticketcode
+
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
@@ -88,8 +102,7 @@ export const eventRegistration = pgTable("event_registration", {
 });
 
 export const question = pgTable("question", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   eventId: bigint("event_id", { mode: "number" })
     .notNull()
     .references(() => event.id, { onDelete: "cascade" }),
@@ -111,8 +124,7 @@ export const question = pgTable("question", {
 });
 
 export const eventRegistrationResponse = pgTable("event_registration_response", {
-  id: bigint("id", { mode: "number" }).primaryKey().notNull()
-  .default(sql`DEFAULT`),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   signupId: bigint("signup_id", { mode: "number" })
     .notNull()
     .references(() => eventRegistration.id, { onDelete: "cascade" }),

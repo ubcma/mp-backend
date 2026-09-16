@@ -3,7 +3,7 @@ import Stripe from "stripe";
 //import { redis } from "redis"; // if using Redis for form response persistence
 import { Redis } from "ioredis";
 import { db } from "../db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { userProfile } from "../db/schema/userProfile";
 import { transaction } from "../db/schema/transaction";
 import { event as eventsTable } from "../db/schema/event"; 
@@ -13,10 +13,7 @@ import { eventRegistration } from "../db/schema/event";
 import { sendReceiptEmail } from "../lib/receipts";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // initialize stripe object to create payment intent, utilize with backend webhook
-  apiVersion: "2025-07-30.basil", // check api version via stripe dashboard
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 console.log(
   "Loading Stripe with key:",
@@ -77,9 +74,10 @@ export async function createPaymentIntent(
 
     if (!evt) throw httpError(404, "event_not_found");
     if (evt.price == null) throw httpError(409, "event_price_missing");
+    if (evt.nonMemberPrice == null) throw httpError(409, "event_non_member_price_missing");
 
     
-    amountInCents = Math.round(Number(evt.price) * 100);
+    amountInCents = user.role === 'Basic' ? Math.round(Number(evt.nonMemberPrice) * 100) : Math.round(Number(evt.price) * 100);
     finalCurrency = "cad"; 
     meta.eventId = String(eventId); //
   } else if (purchaseType === "membership") {
@@ -155,7 +153,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   const data = JSON.parse(dataStr);
 
 
-  // Change user role to Member (if not already)
+  // Change user role to Member 
   if (data.purchaseType === "membership") {
     await db
       .update(userProfile)
@@ -166,6 +164,28 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
       .where(eq(userProfile.userId, data.userId));
     console.log('Updated Member Profile')
   }
+
+  if (data.purchaseType === "event" && data.eventId) {
+
+  const [result] = await db
+    .select({ count: sql<number>`COUNT(${eventRegistration.id})::int` })
+    .from(eventRegistration)
+    .where(eq(eventRegistration.eventId, Number(data.eventId)));
+
+  const currentCount = result?.count ?? 0;
+
+  const [evt] = await db
+    .select({ attendeeCap: eventsTable.attendeeCap })
+    .from(eventsTable)
+    .where(eq(eventsTable.id, Number(data.eventId)))
+    .limit(1);
+
+  const cap = evt?.attendeeCap ?? null;
+
+  if (cap && currentCount >= cap) {
+    throw new Error("Event is full");
+  }
+}
 
   //Insert into eventRegistration (directly)
   if (data.purchaseType === "event" && data.eventId) {

@@ -3,9 +3,10 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { userProfile } from "../db/schema/userProfile";
 import { event as eventsTable } from "../db/schema/event";
-import { sendEmail } from "../lib/emailService";
+import { sendEmail, sendEmailWithAttachments, sendEmailWithQR } from "../lib/emailService";
 import { membershipReceiptTemplate, eventReceiptWithTicketTemplate } from "../aws/emailTemplates";
 import { Redis } from "ioredis";
+import { generateTicket } from "../lib/ticket"; // import ticket generator
 
 const redis = new Redis(`${process.env.REDIS_URL}?family=0`);
 
@@ -26,6 +27,7 @@ export async function sendReceiptEmail(opts: { //single options object to send a
 })
  {
   // Idempotency guard (avoid duplicate sends on webhook retries OR createRegistration call)
+  /*
   const redisKey = opts.paymentIntentId
     ? `email:pi:${opts.paymentIntentId}` // payment ID 
     : `email:free:${opts.userId}:${opts.eventId}`; // FIX: in case the event is free, we use redis fallback on the user and event id rather than payment 
@@ -35,6 +37,7 @@ export async function sendReceiptEmail(opts: { //single options object to send a
     console.log("Receipt email already sent; skipping.");
     return;
   }
+  */
 
   // Lookup the user for the email and name (based on id)
   const [user] = await db
@@ -99,26 +102,94 @@ export async function sendReceiptEmail(opts: { //single options object to send a
     }
   }
 
-  // Generate a ticket code for both paid and unpaid scenarios 
-  const defaultTicketCode = opts.paymentIntentId
-    ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
-    : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
+  if (!opts.eventId) {
+    throw new Error("Missing eventId for event purchase");
+  }
 
+   // ✅ 5️⃣ Generate ticket + QR buffer using ticket.ts helper
+  const { ticketCode, qrProxyUrl, scanUrl } = await generateTicket({
+    userId: opts.userId,
+    eventId: opts.eventId,
+    paymentIntentId: opts.paymentIntentId,
+  });
 
+  // ✅ 6️⃣ Build event receipt template with S3 link instead of inline image
   const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
     name: user?.name ?? null,
-    email: to, // show recipient in email body
+    email: to,
     amountInCents,
     currency,
     paymentIntentId: opts.paymentIntentId ?? null,
-    purchaseDateISO, 
+    purchaseDateISO,
     event: eventMeta,
     ticket: {
-      code: defaultTicketCode,
+      code: ticketCode,
       seat: null,
-      qrImageUrl: null, // plug if you host 
+      // use S3 proxy or presigned link instead of inline CID
+      qrImageUrl: qrProxyUrl,
     },
   });
+
+  // ✅ 7️⃣ Send via normal SES (renders perfectly everywhere)
+  await sendEmail({ to, subject, htmlBody, textBody });
+
+  console.log(`✅ Sent event ticket email to ${to} for ${eventMeta.name}`);
+}
+
+/*
+
+// Generate a ticket code for both paid and unpaid scenarios 
+const defaultTicketCode = opts.paymentIntentId
+  ? `T-${opts.paymentIntentId.slice(-8).toUpperCase()}`
+  : `F-${opts.userId.slice(-6).toUpperCase()}-${opts.eventId ?? "X"}`;
+
+let qrProxyUrl: string | null = null;
+try {
+
+  const QRCode = require("qrcode");
+
+  // Generate QR image buffer
+  const qrBuffer = await QRCode.toBuffer(defaultTicketCode, {
+    type: "png",
+    width: 300,
+    errorCorrectionLevel: "H",
+  });
+
+
+  await uploadFileToS3({
+    key: `tickets/${defaultTicketCode}.png`,
+    body: qrBuffer,
+    contentType: "image/png",
+    acl: "private",
+  });
+
+  qrProxyUrl = `${process.env.FRONTEND_ORIGIN || process.env.BACKEND_URL}/api/qr/${defaultTicketCode}`;
+
+} catch (err) {
+  console.error("[receipts] Failed to generate or upload QR:", err);
+}
+
+
+const { ticketCode, qrBuffer, qrProxyUrl, scanUrl } = await generateTicket({
+    userId: opts.userId,
+    eventId: opts.eventId,
+    paymentIntentId: opts.paymentIntentId,
+  });
+
+const { subject, htmlBody, textBody } = eventReceiptWithTicketTemplate({
+  name: user?.name ?? null,
+  email: to,
+  amountInCents,
+  currency,
+  paymentIntentId: opts.paymentIntentId ?? null,
+  purchaseDateISO,
+  event: eventMeta,
+  ticket: {
+    code: defaultTicketCode,
+    seat: null,
+    qrImageUrl: qrProxyUrl, 
+  },
+});
 
   console.log("[receipts] isProd=%s  TEST_RECEIPT_EMAIL=%s  dbEmail=%s  NODE_ENV=%s",
   user?.email,
@@ -126,4 +197,4 @@ export async function sendReceiptEmail(opts: { //single options object to send a
 );
 
   await sendEmail({ to, subject, htmlBody, textBody });
-}
+*/

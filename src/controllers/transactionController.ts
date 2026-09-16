@@ -25,7 +25,7 @@ export const getAllTransactions = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     // Extract page and pageSize from query params, with defaults
     const page = parseInt(req.query.page as string) || 1;
@@ -94,7 +94,7 @@ export const getTotalRevenue = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const result = await db
       .select({
@@ -107,6 +107,9 @@ export const getTotalRevenue = async (req: Request, res: Response) => {
 
     res.status(200).json({ totalRevenue });
   } catch (error) {
+    if (error instanceof Error && error.message?.includes("Forbidden")) {
+      return res.status(403).json({ error: "Forbidden: Admins only" });
+    }
     console.error("Failed to fetch total revenue:", error);
     res.status(500).json({ error: "Failed to fetch total revenue" });
   }

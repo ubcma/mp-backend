@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { userProfile } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
@@ -27,7 +27,7 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     // Verify event exists
     const [eventExists] = await db
@@ -132,7 +132,11 @@ export const createRegistration = async (req: Request, res: Response) => {
 
     // Verify event exists
     const [eventExists] = await db
-      .select()
+      .select({
+        id: event.id,
+        attendeeCap: event.attendeeCap,
+        title: event.title
+      })
       .from(event)
       .where(eq(event.id, parseInt(eventId)))
       .limit(1);
@@ -158,6 +162,19 @@ export const createRegistration = async (req: Request, res: Response) => {
     }
 
     const { responses, stripeTransactionId } = req.body;
+
+    // Check attendee cap if it exists
+
+    if (eventExists.attendeeCap) {
+      const [currentAttendeeCount] = await db
+      .select({count: sql<number>`count(*)::int`})
+      .from(eventRegistration)
+      .where(eq(eventRegistration.eventId, parseInt(eventId)));
+
+      if (currentAttendeeCount.count >= eventExists.attendeeCap) {
+        return  res.status(409).json({ error: "Event is full"});
+      }
+    }
 
     // Create the signup
     const [newSignup] = await db
@@ -307,6 +324,7 @@ export const getRegistrationById = async (req: Request, res: Response) => {
   }
 };
 
+// this is the function that changes and persists the sign-up status
 export const updateRegistration = async (req: Request, res: Response) => {
   const { id: eventId, registrationId } = req.params;
 

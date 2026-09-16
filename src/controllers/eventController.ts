@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { event, eventTag, question, tag } from "../db/schema/event";
 import { auth } from "../lib/auth";
-import { userProfile, userRoleEnum } from "../db/schema/userProfile";
-import { users } from "../db/schema/auth";
 import {
   CreateEventInput,
   DeleteEventInput,
@@ -29,6 +27,14 @@ export const getAllEvents = async (req: Request, res: Response) => {
         description: event.description,
         imageUrl: event.imageUrl,
         isVisible: event.isVisible,
+        attendeeCap: event.attendeeCap,
+        pricingTier: event.pricingTier,
+        nonMemberPrice: event.nonMemberPrice,
+        currentAttendeeCount: sql<number>`(
+          SELECT COUNT(*)::int
+          FROM event_registration
+          WHERE event_registration.event_id = ${event.id}
+        )`,
       })
       .from(event)
       .leftJoin(eventTag, eq(eventTag.eventId, event.id))
@@ -60,7 +66,27 @@ export const getEventBySlug = async (req: Request, res: Response) => {
     }
 
     const [fetchedEvent] = await db
-      .select()
+      .select({
+        id: event.id,
+        title: event.title,
+        slug: event.slug,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        location: event.location,
+        price: event.price,
+        description: event.description,
+        imageUrl: event.imageUrl,
+        isVisible: event.isVisible,
+        attendeeCap: event.attendeeCap,
+        membersOnly: event.membersOnly,
+        pricingTier: event.pricingTier,
+        nonMemberPrice: event.nonMemberPrice,
+        currentAttendeeCount: sql<number>`(
+          SELECT COUNT(*)::int
+          FROM event_registration
+          WHERE event_registration.event_id = ${event.id}
+        )`,
+      })
       .from(event)
       .where(eq(event.slug, slug))
       .limit(1);
@@ -86,10 +112,10 @@ export const getEventBySlug = async (req: Request, res: Response) => {
     return res.json({
       event: fetchedEvent,
       questions: eventQuestions,
-      tags: tagRows.map((t) => t.name),
+      tags: tagRows.map((t) => t.name).filter(Boolean),
     });
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("Error fetching event:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -112,7 +138,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: CreateEventInput = req.body;
     const startsAt = new Date(data.startsAt);
@@ -129,6 +155,9 @@ export const createEvent = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
+        nonMemberPrice: data.nonMemberPrice,
+        attendeeCap: data.attendeeCap || null,
+        pricingTier: data.pricingTier || null,
         startsAt: startsAt,
         endsAt: endsAt,
         createdAt: new Date(),
@@ -185,7 +214,7 @@ export const updateEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: UpdateEventInput = req.body;
 
@@ -211,9 +240,12 @@ export const updateEventById = async (req: Request, res: Response) => {
         location: data.location,
         isVisible: data.isVisible,
         membersOnly: data.membersOnly,
+        attendeeCap: data.attendeeCap || null,
+        pricingTier: data.pricingTier || null,
         startsAt: new Date(data.startsAt),
         endsAt: new Date(data.endsAt),
         updatedAt: new Date(),
+        nonMemberPrice: data.nonMemberPrice || 0,
       })
       .where(eq(event.id, data.id))
       .returning();
@@ -246,7 +278,7 @@ export const deleteEventById = async (req: Request, res: Response) => {
 
     const userId = session.user.id;
 
-    validateAdmin(userId);
+    await validateAdmin(userId);
 
     const data: DeleteEventInput = req.body;
 
