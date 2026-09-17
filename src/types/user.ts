@@ -1,5 +1,6 @@
 export type UpdateUserProfileInput = {
   name?: string;
+  studentNumber?: string;
   avatar?: string;
   year?: string;
   bio?: string;

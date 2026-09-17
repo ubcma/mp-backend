@@ -14,3 +14,4 @@ export const QUESTION_TYPES = [
 
 export const PAYMENT_EXPIRY = 3600; // 10 minutes in seconds
 export const MEMBERSHIP_PRICE = 1060; // 10.60 
+export const STUDENT_NUMBER_MIN_LENGTH = 8;
