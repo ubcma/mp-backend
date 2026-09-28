@@ -12,7 +12,8 @@ import { Request, Response, RequestHandler } from "express";
 import stripe, {verifyStripeWebhook, 
         createPaymentIntent, 
         getPaymentIntentForUser,
-        processPaymentIntent} from "../lib/stripe"
+        processPaymentIntent,
+        applyPromotionCode} from "../lib/stripe"
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
@@ -109,6 +110,52 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     res.status(500).send('Webhook processing error');
   }
 };
+
+
+export async function handleApplyPromotionCode(req: Request, res: Response) {
+  const headers = new Headers();
+  if (req.headers.cookie) {
+    headers.append("cookie", req.headers.cookie);
+  }
+
+  try {
+    const session = await auth.api.getSession({ headers });
+    const user = session?.user;
+    if (!user?.id) {
+      return res.status(401).json({ error: "Unauthorized", message: "Unauthorized" });
+    }
+
+    const { paymentIntentId, code } = req.body as {
+      paymentIntentId?: string;
+      code?: string;
+    };
+
+    if (!paymentIntentId || !code?.trim()) {
+      return res.status(400).json({
+        error: "missing_params",
+        message: "paymentIntentId and code are required",
+      });
+    }
+
+    const result = await applyPromotionCode(user.id, paymentIntentId, code);
+
+    return res.json({
+      clientSecret: result.paymentIntent.client_secret,
+      paymentIntentId: result.paymentIntent.id,
+      amount: result.amount,
+      originalAmount: result.originalAmount,
+      promotionCode: result.promotionCode,
+      percentOff: result.percentOff ?? null,
+      amountOff: result.amountOff ?? null,
+    });
+  } catch (err: any) {
+    const status = typeof err?.status === "number" ? err.status : 500;
+    const code = err?.code || "apply_promo_failed";
+    const message = err?.message || "Failed to apply promotion code";
+    console.error("Error applying promotion code:", err);
+    return res.status(status).json({ error: code, message });
+  }
+}
 
 export async function handleVerifyPayment(req: Request, res: Response) {
   const headers = new Headers();

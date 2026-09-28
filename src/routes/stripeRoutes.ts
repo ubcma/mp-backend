@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { handleVerifyPayment,
   handleCreatePaymentIntent,
   handleGetPaymentIntent,
+  handleApplyPromotionCode,
 } from "../controllers/stripeController"
 import { asyncHandler } from '../lib/asyncHandler';
 
@@ -15,6 +16,7 @@ const stripeRouter = Router();
 // async control function returns the client secret to return to frontend 
 stripeRouter.post('/create-payment-intent', asyncHandler(handleCreatePaymentIntent));
 stripeRouter.get('/payment-intent/:userId', handleGetPaymentIntent);
+stripeRouter.post('/apply-promotion-code', asyncHandler(handleApplyPromotionCode));
 stripeRouter.get('/verify-payment', asyncHandler(handleVerifyPayment));
 
 export default stripeRouter;
