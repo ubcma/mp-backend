@@ -204,7 +204,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     stripe_payment_intent_id: intent.id,
     purchase_type: data.purchaseType,
     payment_method_type: intent.payment_method_types?.[0] ?? "card",
-    amount: data.amount.toString(),
+    amount: String(intent.amount),
     currency: data.currency,
     event_id: data.eventId ?? null,
     paid_at: new Date(),
@@ -222,7 +222,7 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
     await sendReceiptEmail({
       userId: data.userId,
       paymentIntentId: intent.id,
-      amountInCents: data.amount,       // IN CENTS!!! 
+      amountInCents: intent.amount,     // IN CENTS — use Stripe PI (reflects promos)
       currency: data.currency,          // should be cad | usd 
       purchaseType: data.purchaseType,  // "membership" | "event"
       eventId: data.eventId ?? null,
@@ -237,6 +237,167 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
   await redis.del(`pi:${intent.id}`);
 }
 
+
+
+/**
+ * Apply a Stripe promotion code to an existing membership PaymentIntent.
+ * Enforces an optional time window via MEMBERSHIP_PROMO_WINDOW_START / END (ISO 8601).
+ * Optionally restricts to MEMBERSHIP_PROMO_CODE when that env var is set.
+ */
+export async function applyPromotionCode(
+  userId: string,
+  paymentIntentId: string,
+  code: string
+) {
+  const trimmedCode = code?.trim();
+  if (!paymentIntentId || !trimmedCode) {
+    throw httpError(400, "missing_params", "Payment intent and promotion code are required");
+  }
+
+  const allowedCode = process.env.MEMBERSHIP_PROMO_CODE?.trim();
+  if (allowedCode && trimmedCode.toUpperCase() !== allowedCode.toUpperCase()) {
+    throw httpError(400, "invalid_code", "Invalid promotion code");
+  }
+
+  const windowStart = process.env.MEMBERSHIP_PROMO_WINDOW_START?.trim();
+  const windowEnd = process.env.MEMBERSHIP_PROMO_WINDOW_END?.trim();
+  const now = Date.now();
+
+  if (windowStart) {
+    const startMs = Date.parse(windowStart);
+    if (Number.isNaN(startMs)) {
+      throw httpError(500, "bad_promo_config", "Invalid promotion window start");
+    }
+    if (now < startMs) {
+      throw httpError(403, "promo_not_started", "This promotion code is not active yet");
+    }
+  }
+
+  if (windowEnd) {
+    const endMs = Date.parse(windowEnd);
+    if (Number.isNaN(endMs)) {
+      throw httpError(500, "bad_promo_config", "Invalid promotion window end");
+    }
+    if (now > endMs) {
+      throw httpError(403, "promo_expired", "This promotion code has expired");
+    }
+  }
+
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+  if (paymentIntent.metadata?.userId !== userId) {
+    throw httpError(403, "forbidden", "Payment intent does not belong to this user");
+  }
+  if (paymentIntent.metadata?.purchaseType !== "membership") {
+    throw httpError(400, "not_membership", "Promotion codes are only valid for membership purchases");
+  }
+
+  const updatable = ["requires_payment_method", "requires_confirmation", "requires_action"];
+  if (!updatable.includes(paymentIntent.status)) {
+    throw httpError(409, "intent_not_updatable", "This payment can no longer be updated");
+  }
+
+  // Already applied this code — idempotent
+  if (
+    paymentIntent.metadata?.promotionCode &&
+    paymentIntent.metadata.promotionCode.toUpperCase() === trimmedCode.toUpperCase()
+  ) {
+    return {
+      paymentIntent,
+      amount: paymentIntent.amount,
+      originalAmount: Number(paymentIntent.metadata.originalAmount) || MEMBERSHIP_PRICE,
+      promotionCode: paymentIntent.metadata.promotionCode,
+    };
+  }
+
+  // Stripe promotion code matching is case-sensitive
+  const codesToTry = Array.from(
+    new Set(
+      [trimmedCode, trimmedCode.toUpperCase(), allowedCode].filter(
+        (c): c is string => Boolean(c)
+      )
+    )
+  );
+
+  let promotionCode: Stripe.PromotionCode | undefined;
+  for (const tryCode of codesToTry) {
+    const promoList = await stripe.promotionCodes.list({
+      code: tryCode,
+      active: true,
+      limit: 1,
+    });
+    if (promoList.data[0]) {
+      promotionCode = promoList.data[0];
+      break;
+    }
+  }
+
+  if (!promotionCode) {
+    throw httpError(400, "invalid_code", "Invalid or inactive promotion code");
+  }
+
+  const couponId =
+    typeof promotionCode.coupon === "string"
+      ? promotionCode.coupon
+      : promotionCode.coupon.id;
+  const coupon = await stripe.coupons.retrieve(couponId);
+
+  if (!coupon.valid) {
+    throw httpError(400, "invalid_coupon", "This promotion is no longer valid");
+  }
+
+  const originalAmount = MEMBERSHIP_PRICE;
+  let discountedAmount = originalAmount;
+
+  if (coupon.percent_off != null) {
+    discountedAmount = Math.round(originalAmount * (1 - coupon.percent_off / 100));
+  } else if (coupon.amount_off != null) {
+    // amount_off is in the coupon's currency's smallest unit
+    discountedAmount = Math.max(0, originalAmount - coupon.amount_off);
+  } else {
+    throw httpError(400, "unsupported_coupon", "Coupon has no discount configured");
+  }
+
+  if (discountedAmount <= 0) {
+    throw httpError(400, "invalid_discount", "Discounted amount must be greater than zero");
+  }
+  if (discountedAmount === originalAmount) {
+    throw httpError(400, "no_discount", "Promotion code does not change the price");
+  }
+
+  const updated = await stripe.paymentIntents.update(paymentIntentId, {
+    amount: discountedAmount,
+    metadata: {
+      ...paymentIntent.metadata,
+      promotionCode: trimmedCode.toUpperCase(),
+      promotionCodeId: promotionCode.id,
+      originalAmount: String(originalAmount),
+    },
+  });
+
+  const dataStr = await redis.get(`pi:${paymentIntentId}`);
+  if (dataStr) {
+    const data = JSON.parse(dataStr);
+    data.amount = discountedAmount;
+    data.promotionCode = trimmedCode.toUpperCase();
+    data.originalAmount = originalAmount;
+    await redis.set(
+      `pi:${paymentIntentId}`,
+      JSON.stringify(data),
+      "EX",
+      PAYMENT_EXPIRY
+    );
+  }
+
+  return {
+    paymentIntent: updated,
+    amount: discountedAmount,
+    originalAmount,
+    promotionCode: trimmedCode.toUpperCase(),
+    percentOff: coupon.percent_off ?? null,
+    amountOff: coupon.amount_off ?? null,
+  };
+}
 
 // Utility function to create a price for a product
 export const createPrice = async (
