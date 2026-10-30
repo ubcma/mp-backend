@@ -18,6 +18,7 @@ import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import Stripe from 'stripe';
+import { sendHttpError } from "../lib/utils";
 
 require('dotenv').config({ path: ['.env.development.local', '.env'] })
 
@@ -56,8 +57,7 @@ export const handleCreatePaymentIntent = async (req: Request, res: Response) => 
     console.log('Client secret:', paymentIntent.client_secret);
 
   } catch (err) {
-    console.error("Error creating PaymentIntent:", err);
-    res.status(500).json({ error: 'Failed to create PaymentIntent' });
+    return sendHttpError(res, err, "Error creating PaymentIntent:");
   }
 };
 

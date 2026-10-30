@@ -9,6 +9,8 @@ import {
   boolean,
   jsonb,
   primaryKey,
+  unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
@@ -99,7 +101,37 @@ export const eventRegistration = pgTable("event_registration", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .default(sql`now()`),
-});
+  }, (t) => [unique().on(t.userId, t.eventId)]);
+
+  export const workshop = pgTable("workshop", {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    eventId: bigint("event_id", { mode: "number" })
+      .notNull()
+      .references(() => event.id, { onDelete: "cascade" }),
+    slot: integer("slot").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    capacity: integer("capacity").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  });
+  
+  export const workshopRegistration = pgTable("workshop_registration", {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    registrationId: bigint("registration_id", { mode: "number" })
+      .notNull()
+      .references(() => eventRegistration.id, { onDelete: "cascade" }),
+    workshopId: bigint("workshop_id", { mode: "number" })
+      .notNull()
+      .references(() => workshop.id, { onDelete: "cascade" }),
+    slot: integer("slot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  }, (t) => [
+    unique().on(t.registrationId, t.slot),
+    index("workshop_registration_workshop_id_idx").on(t.workshopId),
+  ]);
 
 export const question = pgTable("question", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

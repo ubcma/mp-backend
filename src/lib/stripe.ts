@@ -11,6 +11,8 @@ import { PAYMENT_EXPIRY } from "./constants";
 import { MEMBERSHIP_PRICE  } from "./constants";
 import { eventRegistration } from "../db/schema/event";
 import { sendReceiptEmail } from "../lib/receipts";
+import { httpError } from "./utils";
+import { assertOnboardingComplete, requiresOnboarding } from "./registrationChecks";
 
 require("dotenv").config({ path: [".env.development.local", ".env"] }); // changed to accept .env.development.local
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -32,9 +34,6 @@ export const redis = new Redis(`${process.env.REDIS_URL}?family=0`)
     console.log("Redis ready");
   });
 
-
-const httpError = (status: number, code: string, message?: string) =>
-  Object.assign(new Error(message ?? code), { status, code });
 
 export async function createPaymentIntent(
   purchaseType: "membership" | "event",
@@ -75,6 +74,9 @@ export async function createPaymentIntent(
     if (!evt) throw httpError(404, "event_not_found");
     if (evt.price == null) throw httpError(409, "event_price_missing");
     if (evt.nonMemberPrice == null) throw httpError(409, "event_non_member_price_missing");
+    if (requiresOnboarding(evt)) {
+      assertOnboardingComplete(user);
+    }
 
     
     amountInCents = user.role === 'Basic' ? Math.round(Number(evt.nonMemberPrice) * 100) : Math.round(Number(evt.price) * 100);
