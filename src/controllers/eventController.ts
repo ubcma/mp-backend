@@ -1,16 +1,20 @@
 import { Request, Response } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
-import { event, eventTag, question, tag } from "../db/schema/event";
+import { event, eventTag, question, tag, workshop } from "../db/schema/event";
 import { auth } from "../lib/auth";
 import {
   CreateEventInput,
   DeleteEventInput,
   QuestionInput,
   UpdateEventInput,
+  WorkshopInput,
 } from "../types/event";
 import { deleteOldFile } from "../lib/uploadthing";
+import { ONBOARDING_REQUIRED_EVENT_SLUGS } from "../lib/constants";
+import { parseWorkshopInput } from "../lib/registrationChecks";
 import { validateAdmin } from "../lib/validateSession";
+import { sendHttpError } from "../lib/utils";
 
 export const getAllEvents = async (req: Request, res: Response) => {
   try {
@@ -110,7 +114,10 @@ export const getEventBySlug = async (req: Request, res: Response) => {
       .where(eq(eventTag.eventId, fetchedEvent.id));
 
     return res.json({
-      event: fetchedEvent,
+      event: {
+        ...fetchedEvent,
+        requiresOnboarding: ONBOARDING_REQUIRED_EVENT_SLUGS.includes(fetchedEvent.slug),
+      },
       questions: eventQuestions,
       tags: tagRows.map((t) => t.name).filter(Boolean),
     });
@@ -143,6 +150,9 @@ export const createEvent = async (req: Request, res: Response) => {
     const data: CreateEventInput = req.body;
     const startsAt = new Date(data.startsAt);
     const endsAt = new Date(data.endsAt);
+    const workshopInputs: WorkshopInput[] = Array.isArray(data.workshops)
+      ? data.workshops.map((w) => parseWorkshopInput(w, { requireSlot: true }))
+      : [];
 
     const [eventRecord] = await db
       .insert(event)
@@ -184,6 +194,19 @@ export const createEvent = async (req: Request, res: Response) => {
       );
     }
 
+    if (workshopInputs.length > 0) {
+      await db.insert(workshop).values(
+        workshopInputs.map((w, index) => ({
+          eventId,
+          title: w.title,
+          description: w.description,
+          capacity: w.capacity,
+          slot: w.slot,
+          sortOrder: index,
+        }))
+      );
+    }
+
     console.log("Questions created successfully");
 
     return res.json({
@@ -191,8 +214,7 @@ export const createEvent = async (req: Request, res: Response) => {
       body: eventRecord,
     });
   } catch (error) {
-    console.error("Error creating event:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return sendHttpError(res, error, "Error creating event:");
   }
 };
 

@@ -13,6 +13,28 @@ export type QuestionInput = {
   sortOrder: number;
 };
 
+export type Workshop = {
+  id: number;
+  eventId: number;
+  slot: number;
+  title: string;
+  description: string | null;
+  capacity: number;
+  sortOrder: number;
+  registeredCount: number;
+  isFull: boolean;
+};
+
+// Keyed by slot number, e.g. { "1": 12, "2": 14 }
+export type WorkshopSelection = Record<string, number>;
+
+export type WorkshopInput = {
+  title: string;
+  description: string | null;
+  capacity: number;
+  slot: number;
+};
+
 export type CreateEventInput = {
   title: string;
   slug: string;
@@ -28,6 +50,7 @@ export type CreateEventInput = {
   startsAt: Date;
   endsAt: Date;
   questions: QuestionInput[];
+  workshops?: WorkshopInput[];
 };
 
 export type UpdateEventInput = {

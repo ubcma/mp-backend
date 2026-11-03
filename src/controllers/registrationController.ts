@@ -4,9 +4,46 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { userProfile } from "../db/schema/userProfile";
 import { users } from "../db/schema/auth";
-import { event, eventRegistration, eventRegistrationResponse, question } from "../db/schema/event";
+import {
+  event,
+  eventRegistration,
+  eventRegistrationResponse,
+  question,
+  workshop,
+  workshopRegistration,
+} from "../db/schema/event";
 import { validateAdmin } from "../lib/validateSession";
 import { sendReceiptEmail } from "../lib/receipts";
+import { sendHttpError } from "../lib/utils";
+import {
+  assertEventNotStarted,
+  assertFreeForUser,
+  assertMemberIfRequired,
+  assertOnboardingComplete,
+  getEventOrThrow,
+  getSessionUserId,
+  getUserProfileOrThrow,
+  requiresOnboarding,
+} from "../lib/registrationChecks";
+
+async function getWorkshopPicksByRegistration(registrationIds: number[]) {
+  const picks = registrationIds.length > 0 ? await db
+    .select({
+      registrationId: workshopRegistration.registrationId,
+      slot: workshopRegistration.slot,
+      workshopId: workshopRegistration.workshopId,
+      title: workshop.title,
+    })
+    .from(workshopRegistration)
+    .innerJoin(workshop, eq(workshopRegistration.workshopId, workshop.id))
+    .where(inArray(workshopRegistration.registrationId, registrationIds))
+    .orderBy(workshopRegistration.slot) : [];
+
+  return (registrationId: number) =>
+    picks
+      .filter((pick) => pick.registrationId === registrationId)
+      .map(({ slot, workshopId, title }) => ({ slot, workshopId, title }));
+}
 
 export const getEventRegistrations = async (req: Request, res: Response) => {
   const { id: eventId } = req.params;
@@ -55,13 +92,20 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
         userImage: users.image,
         // User profile details
         name: userProfile.name,
-        year: userProfile.year,
+        studentNumber: userProfile.studentNumber,
+        yearOfStudy: userProfile.year,
         faculty: userProfile.faculty,
       })
       .from(eventRegistration)
       .leftJoin(users, eq(eventRegistration.userId, users.id))
       .leftJoin(userProfile, eq(users.id, userProfile.userId))
       .where(eq(eventRegistration.eventId, parseInt(eventId)));
+
+    const eventWorkshops = await db
+      .select({ id: workshop.id, slot: workshop.slot, title: workshop.title })
+      .from(workshop)
+      .where(eq(workshop.eventId, parseInt(eventId)))
+      .orderBy(workshop.slot, workshop.sortOrder);
 
     // Get all questions for this event
     const eventQuestions = await db
@@ -84,6 +128,8 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
       .leftJoin(question, eq(eventRegistrationResponse.questionId, question.id))
       .where(inArray(eventRegistrationResponse.signupId, signupIds)) : [];
 
+    const workshopsFor = await getWorkshopPicksByRegistration(signupIds);
+
     // Structure the data with responses grouped by registration
     const registrationsWithResponses = registrations.map(registration => {
       const userResponses = responses.filter(resp => resp.signupId === registration.id);
@@ -98,12 +144,14 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
       return {
         ...registration,
         responses: responseMap,
+        workshops: workshopsFor(registration.id),
       };
     });
 
     return res.status(200).json({
       registrations: registrationsWithResponses,
       questions: eventQuestions,
+      workshops: eventWorkshops,
     });
   } catch (error) {
     console.error("Error fetching event registrations:", error);
@@ -112,38 +160,19 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
 };
 
 export const createRegistration = async (req: Request, res: Response) => {
-  const { id: eventId } = req.params;
-
-  const headers = new Headers();
-  if (req.headers.cookie) {
-    headers.append("cookie", req.headers.cookie);
-  }
-
   try {
-    const session = await auth.api.getSession({
-      headers: headers,
-    });
+    const userId = await getSessionUserId(req);
+    const eventExists = await getEventOrThrow(Number(req.params.id));
+    const eventId = eventExists.id;
 
-    if (!session) {
-      return res.status(401).json({ error: "Unauthorized" });
+    assertEventNotStarted(eventExists);
+
+    const profile = await getUserProfileOrThrow(userId);
+    if (requiresOnboarding(eventExists)) {
+      assertOnboardingComplete(profile);
     }
-
-    const userId = session.user.id;
-
-    // Verify event exists
-    const [eventExists] = await db
-      .select({
-        id: event.id,
-        attendeeCap: event.attendeeCap,
-        title: event.title
-      })
-      .from(event)
-      .where(eq(event.id, parseInt(eventId)))
-      .limit(1);
-
-    if (!eventExists) {
-      return res.status(404).json({ error: "Event not found" });
-    }
+    assertMemberIfRequired(eventExists, profile);
+    assertFreeForUser(eventExists, profile);
 
     // Check if user is already registered for this event
     const [existingRegistration] = await db
@@ -151,7 +180,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       .from(eventRegistration)
       .where(
         and(
-          eq(eventRegistration.eventId, parseInt(eventId)),
+          eq(eventRegistration.eventId, eventId),
           eq(eventRegistration.userId, userId)
         )
       )
@@ -169,7 +198,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       const [currentAttendeeCount] = await db
       .select({count: sql<number>`count(*)::int`})
       .from(eventRegistration)
-      .where(eq(eventRegistration.eventId, parseInt(eventId)));
+      .where(eq(eventRegistration.eventId, eventId));
 
       if (currentAttendeeCount.count >= eventExists.attendeeCap) {
         return  res.status(409).json({ error: "Event is full"});
@@ -181,7 +210,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       .insert(eventRegistration)
       .values({
         userId: userId,
-        eventId: parseInt(eventId),
+        eventId: eventId,
         stripeTransactionId: stripeTransactionId || null, // in case there is no payment (eg. free event)
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -208,7 +237,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       await sendReceiptEmail({
         userId: userId,     
         purchaseType: "event",  // "membership" | "event"
-        eventId: parseInt(eventId) ?? null,
+        eventId: eventId,
       });
       console.log("Receipt email queued/sent");
     } catch (err) {
@@ -222,8 +251,7 @@ export const createRegistration = async (req: Request, res: Response) => {
       signup: newSignup,
     });
   } catch (error) {
-    console.error("Error creating registration:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return sendHttpError(res, error, "Error creating registration:");
   }
 };
 
@@ -491,6 +519,8 @@ export const getUserRegistrations = async (req: Request, res: Response) => {
             .where(inArray(eventRegistrationResponse.signupId, registrationIds))
         : [];
 
+    const workshopsFor = await getWorkshopPicksByRegistration(registrationIds);
+
     // Structure the data with responses grouped by registration
     const registrationsWithResponses = registrations.map((registration) => {
       const userResponses = responses.filter(
@@ -507,6 +537,7 @@ export const getUserRegistrations = async (req: Request, res: Response) => {
       return {
         ...registration,
         responses: responseMap,
+        workshops: workshopsFor(registration.id),
       };
     });
 
