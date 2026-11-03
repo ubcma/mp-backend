@@ -1,10 +1,12 @@
 import { betterAuth, User } from "better-auth";
+import { createEmailVerificationToken } from "better-auth/api";
 import { createAuthMiddleware, openAPI } from "better-auth/plugins";
 import { Pool } from "pg";
 import { Redis } from "ioredis";
 import { db } from "../db";
+import { users } from "../db/schema/auth";
 import { userProfile } from "../db/schema/userProfile";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { sendEmail } from "./emailService";
 import { Request } from "express";
 import {
@@ -47,6 +49,22 @@ export const getAllowedOrigins = () => {
 
   return origins.filter(Boolean);
 };
+
+/** Matches better-auth getBaseURL(BETTER_AUTH_URL, basePath) for link building in hooks. */
+export function getAuthServiceBaseURL(): string {
+  const raw = process.env.BETTER_AUTH_URL?.trim().replace(/\/+$/, "");
+  if (!raw) return "";
+  const basePath = "/api/auth";
+  try {
+    const pathname = new URL(raw).pathname.replace(/\/+$/, "") || "";
+    if (pathname && pathname !== "/") {
+      return raw;
+    }
+  } catch {
+    return `${raw}${basePath}`;
+  }
+  return `${raw}${basePath}`;
+}
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET!,
@@ -133,6 +151,56 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true
   },
   hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+
+      const rawEmail = ctx.body?.email;
+      if (typeof rawEmail !== "string") return;
+      const email = rawEmail.toLowerCase();
+
+      const [existing] = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          emailVerified: users.emailVerified,
+          image: users.image,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .where(sql`lower(${users.email}) = ${email}`)
+        .limit(1);
+
+      // A verified account still takes the normal "already exists" path.
+      if (!existing || existing.emailVerified) return;
+
+      const callbackURL =
+        typeof ctx.body?.callbackURL === "string" ? ctx.body.callbackURL : "/";
+      const token = await createEmailVerificationToken(
+        process.env.BETTER_AUTH_SECRET!,
+        existing.email
+      );
+      const url = `${getAuthServiceBaseURL()}/verify-email?token=${token}&callbackURL=${encodeURIComponent(callbackURL)}`;
+      const { subject, htmlBody } = emailVerificationTemplate(url);
+      await sendEmail({ to: existing.email, subject, htmlBody });
+      console.log(`✅ Verification email resent to ${existing.email}`);
+
+      // Same shape as a first sign-up when verification is required, so the
+      // form shows "check your email" instead of "user already exists".
+      return Response.json({
+        token: null,
+        user: {
+          id: existing.id,
+          name: existing.name,
+          email: existing.email,
+          emailVerified: false,
+          image: existing.image,
+          createdAt: existing.createdAt,
+          updatedAt: existing.updatedAt,
+        },
+      });
+    }),
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;
 
