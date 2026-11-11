@@ -147,6 +147,7 @@ export async function handleApplyPromotionCode(req: Request, res: Response) {
       promotionCode: result.promotionCode,
       percentOff: result.percentOff ?? null,
       amountOff: result.amountOff ?? null,
+      free: result.free,
     });
   } catch (err: any) {
     const status = typeof err?.status === "number" ? err.status : 500;

@@ -10,6 +10,7 @@ import {
 import {
   getEventRegistrations,
   createRegistration,
+  redeemFreeRegistration,
   getRegistrationById,
   updateRegistration,
 } from '../controllers/registrationController';
@@ -35,6 +36,7 @@ eventRouter.delete('/delete', asyncHandler(deleteEventById))
 // Registration routes
 eventRouter.get('/:id/registrations', asyncHandler(getEventRegistrations));
 eventRouter.post('/:id/registrations/create', asyncHandler(createRegistration));
+eventRouter.post('/:id/registrations/redeem', asyncHandler(redeemFreeRegistration));
 eventRouter.get('/:id/registrations/:registrationId', asyncHandler(getRegistrationById));
 eventRouter.put('/:id/registrations/:registrationId', asyncHandler(updateRegistration));
 

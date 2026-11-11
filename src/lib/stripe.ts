@@ -8,7 +8,7 @@ import { userProfile } from "../db/schema/userProfile";
 import { transaction } from "../db/schema/transaction";
 import { event as eventsTable } from "../db/schema/event"; 
 import { PAYMENT_EXPIRY } from "./constants";
-import { MEMBERSHIP_PRICE  } from "./constants";
+import { MEMBERSHIP_PRICE, STRIPE_MIN_CHARGE_CENTS } from "./constants";
 import { eventRegistration } from "../db/schema/event";
 import { sendReceiptEmail } from "../lib/receipts";
 import { httpError } from "./utils";
@@ -82,6 +82,7 @@ export async function createPaymentIntent(
     amountInCents = user.role === 'Basic' ? Math.round(Number(evt.nonMemberPrice) * 100) : Math.round(Number(evt.price) * 100);
     finalCurrency = "cad"; 
     meta.eventId = String(eventId); //
+    meta.eventSlug = evt.slug;
   } else if (purchaseType === "membership") {
     if (user.role === "Member") throw httpError(409, "already_member");
     amountInCents = amountInCents = MEMBERSHIP_PRICE;
@@ -89,6 +90,7 @@ export async function createPaymentIntent(
   } else {
     throw httpError(400, "bad_purchase_type");
   }
+  meta.originalAmount = String(amountInCents);
 
   let paymentIntent: Stripe.PaymentIntent;
   try {
@@ -242,22 +244,10 @@ export async function processPaymentIntent(intent: Stripe.PaymentIntent) {
 
 
 /**
- * Apply a Stripe promotion code to an existing membership PaymentIntent.
- * Enforces an optional time window via MEMBERSHIP_PROMO_WINDOW_START / END (ISO 8601).
- * Optionally restricts to MEMBERSHIP_PROMO_CODE when that env var is set.
+ * Enforces MEMBERSHIP_PROMO_CODE and the MEMBERSHIP_PROMO_WINDOW_START / END (ISO 8601) window when set.
  */
-export async function applyPromotionCode(
-  userId: string,
-  paymentIntentId: string,
-  code: string
-) {
-  const trimmedCode = code?.trim();
-  if (!paymentIntentId || !trimmedCode) {
-    throw httpError(400, "missing_params", "Payment intent and promotion code are required");
-  }
-
-  const allowedCode = process.env.MEMBERSHIP_PROMO_CODE?.trim();
-  if (allowedCode && trimmedCode.toUpperCase() !== allowedCode.toUpperCase()) {
+function assertMembershipPromoConfig(code: string, allowedCode: string | undefined) {
+  if (allowedCode && code.toUpperCase() !== allowedCode.toUpperCase()) {
     throw httpError(400, "invalid_code", "Invalid promotion code");
   }
 
@@ -284,38 +274,83 @@ export async function applyPromotionCode(
       throw httpError(403, "promo_expired", "This promotion code has expired");
     }
   }
+}
 
+/**
+ * Scoping is read from `purchaseType` / `eventSlug` metadata on the Stripe promotion code,
+ * falling back to its coupon's metadata:
+ * - membership: codes with no `purchaseType`, or `purchaseType=membership`
+ * - event: codes must have `purchaseType=event`; an optional comma-separated `eventSlug`
+ *   limits the code to those events
+ */
+function assertPromoScope(
+  scope: Stripe.Metadata,
+  purchaseType: "membership" | "event",
+  eventSlug: string | undefined
+) {
+  const codeType = scope.purchaseType?.trim().toLowerCase();
+
+  if (purchaseType === "membership") {
+    if (codeType && codeType !== "membership") {
+      throw httpError(400, "promo_wrong_purchase_type", "This promotion code is not valid for memberships");
+    }
+    return;
+  }
+
+  if (codeType !== "event") {
+    throw httpError(400, "promo_wrong_purchase_type", "This promotion code is not valid for events");
+  }
+
+  const allowedSlugs = (scope.eventSlug ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowedSlugs.length > 0 && !allowedSlugs.includes(eventSlug?.toLowerCase() ?? "")) {
+    throw httpError(400, "promo_wrong_event", "This promotion code is not valid for this event");
+  }
+}
+
+async function getPromotableIntent(userId: string, paymentIntentId: string) {
   const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
   if (paymentIntent.metadata?.userId !== userId) {
     throw httpError(403, "forbidden", "Payment intent does not belong to this user");
   }
-  if (paymentIntent.metadata?.purchaseType !== "membership") {
-    throw httpError(400, "not_membership", "Promotion codes are only valid for membership purchases");
+
+  const purchaseType = paymentIntent.metadata?.purchaseType;
+  if (purchaseType !== "membership" && purchaseType !== "event") {
+    throw httpError(400, "bad_purchase_type", "Promotion codes are not valid for this purchase");
   }
+  const promotableType: "membership" | "event" = purchaseType;
 
   const updatable = ["requires_payment_method", "requires_confirmation", "requires_action"];
   if (!updatable.includes(paymentIntent.status)) {
     throw httpError(409, "intent_not_updatable", "This payment can no longer be updated");
   }
 
-  // Already applied this code — idempotent
-  if (
-    paymentIntent.metadata?.promotionCode &&
-    paymentIntent.metadata.promotionCode.toUpperCase() === trimmedCode.toUpperCase()
-  ) {
-    return {
-      paymentIntent,
-      amount: paymentIntent.amount,
-      originalAmount: Number(paymentIntent.metadata.originalAmount) || MEMBERSHIP_PRICE,
-      promotionCode: paymentIntent.metadata.promotionCode,
-    };
-  }
+  // Intents created before originalAmount was stored still hold the undiscounted amount
+  // unless a code was applied, which also writes originalAmount.
+  const originalAmount =
+    Number(paymentIntent.metadata.originalAmount) ||
+    (purchaseType === "membership" ? MEMBERSHIP_PRICE : paymentIntent.amount);
 
+  return { paymentIntent, purchaseType: promotableType, originalAmount };
+}
+
+/**
+ * Looks up an active promotion code, checks its scope, and returns the discounted amount (may be 0).
+ */
+async function resolvePromotion(
+  code: string,
+  allowedCode: string | undefined,
+  purchaseType: "membership" | "event",
+  paymentIntent: Stripe.PaymentIntent,
+  originalAmount: number
+) {
   // Stripe promotion code matching is case-sensitive
   const codesToTry = Array.from(
     new Set(
-      [trimmedCode, trimmedCode.toUpperCase(), allowedCode].filter(
+      [code, code.toUpperCase(), allowedCode].filter(
         (c): c is string => Boolean(c)
       )
     )
@@ -348,7 +383,12 @@ export async function applyPromotionCode(
     throw httpError(400, "invalid_coupon", "This promotion is no longer valid");
   }
 
-  const originalAmount = MEMBERSHIP_PRICE;
+  assertPromoScope(
+    { ...(coupon.metadata ?? {}), ...(promotionCode.metadata ?? {}) },
+    purchaseType,
+    paymentIntent.metadata.eventSlug
+  );
+
   let discountedAmount = originalAmount;
 
   if (coupon.percent_off != null) {
@@ -360,18 +400,89 @@ export async function applyPromotionCode(
     throw httpError(400, "unsupported_coupon", "Coupon has no discount configured");
   }
 
-  if (discountedAmount <= 0) {
-    throw httpError(400, "invalid_discount", "Discounted amount must be greater than zero");
-  }
   if (discountedAmount === originalAmount) {
     throw httpError(400, "no_discount", "Promotion code does not change the price");
+  }
+
+  return { promotionCode, coupon, discountedAmount };
+}
+
+/**
+ * Apply a Stripe promotion code to an existing membership or event PaymentIntent.
+ * Event codes that bring the price to $0 return `free: true` without touching the PaymentIntent;
+ * the client then registers through the free-redemption endpoint.
+ */
+export async function applyPromotionCode(
+  userId: string,
+  paymentIntentId: string,
+  code: string
+) {
+  const trimmedCode = code?.trim();
+  if (!paymentIntentId || !trimmedCode) {
+    throw httpError(400, "missing_params", "Payment intent and promotion code are required");
+  }
+
+  const { paymentIntent, purchaseType, originalAmount } = await getPromotableIntent(
+    userId,
+    paymentIntentId
+  );
+
+  const allowedCode =
+    purchaseType === "membership" ? process.env.MEMBERSHIP_PROMO_CODE?.trim() : undefined;
+  if (purchaseType === "membership") {
+    assertMembershipPromoConfig(trimmedCode, allowedCode);
+  }
+
+  // Already applied this code — idempotent
+  if (
+    paymentIntent.metadata?.promotionCode &&
+    paymentIntent.metadata.promotionCode.toUpperCase() === trimmedCode.toUpperCase()
+  ) {
+    return {
+      paymentIntent,
+      amount: paymentIntent.amount,
+      originalAmount,
+      promotionCode: paymentIntent.metadata.promotionCode,
+      percentOff: null,
+      amountOff: null,
+      free: false,
+    };
+  }
+
+  const { promotionCode, coupon, discountedAmount } = await resolvePromotion(
+    trimmedCode,
+    allowedCode,
+    purchaseType,
+    paymentIntent,
+    originalAmount
+  );
+
+  const discount = {
+    originalAmount,
+    promotionCode: trimmedCode.toUpperCase(),
+    percentOff: coupon.percent_off ?? null,
+    amountOff: coupon.amount_off ?? null,
+  };
+
+  if (discountedAmount <= 0) {
+    if (purchaseType !== "event") {
+      throw httpError(400, "invalid_discount", "Discounted amount must be greater than zero");
+    }
+    return { paymentIntent, amount: 0, free: true, ...discount };
+  }
+  if (discountedAmount < STRIPE_MIN_CHARGE_CENTS) {
+    throw httpError(
+      400,
+      "below_minimum_charge",
+      `The discounted price must be at least $${(STRIPE_MIN_CHARGE_CENTS / 100).toFixed(2)}`
+    );
   }
 
   const updated = await stripe.paymentIntents.update(paymentIntentId, {
     amount: discountedAmount,
     metadata: {
       ...paymentIntent.metadata,
-      promotionCode: trimmedCode.toUpperCase(),
+      promotionCode: discount.promotionCode,
       promotionCodeId: promotionCode.id,
       originalAmount: String(originalAmount),
     },
@@ -381,7 +492,7 @@ export async function applyPromotionCode(
   if (dataStr) {
     const data = JSON.parse(dataStr);
     data.amount = discountedAmount;
-    data.promotionCode = trimmedCode.toUpperCase();
+    data.promotionCode = discount.promotionCode;
     data.originalAmount = originalAmount;
     await redis.set(
       `pi:${paymentIntentId}`,
@@ -391,14 +502,92 @@ export async function applyPromotionCode(
     );
   }
 
+  return { paymentIntent: updated, amount: discountedAmount, free: false, ...discount };
+}
+
+export type FreeEventPromotion = Awaited<ReturnType<typeof verifyFreeEventPromotion>>;
+
+/**
+ * Verifies that `code` discounts this event PaymentIntent to $0. Register the user only after
+ * this resolves, then call recordFreeEventRedemption.
+ */
+export async function verifyFreeEventPromotion(
+  userId: string,
+  eventId: number,
+  paymentIntentId: string,
+  code: string
+) {
+  const trimmedCode = code?.trim();
+  if (!paymentIntentId || !trimmedCode) {
+    throw httpError(400, "missing_params", "Payment intent and promotion code are required");
+  }
+
+  const { paymentIntent, purchaseType, originalAmount } = await getPromotableIntent(
+    userId,
+    paymentIntentId
+  );
+  if (purchaseType !== "event" || paymentIntent.metadata.eventId !== String(eventId)) {
+    throw httpError(400, "intent_event_mismatch", "This payment is not for this event");
+  }
+
+  const { promotionCode, discountedAmount } = await resolvePromotion(
+    trimmedCode,
+    undefined,
+    purchaseType,
+    paymentIntent,
+    originalAmount
+  );
+  if (discountedAmount > 0) {
+    throw httpError(400, "promo_not_free", "This promotion code does not make this event free");
+  }
+
   return {
-    paymentIntent: updated,
-    amount: discountedAmount,
+    userId,
+    eventId,
+    paymentIntent,
+    promotionCode,
+    code: trimmedCode.toUpperCase(),
     originalAmount,
-    promotionCode: trimmedCode.toUpperCase(),
-    percentOff: coupon.percent_off ?? null,
-    amountOff: coupon.amount_off ?? null,
   };
+}
+
+/**
+ * Records a $0 transaction for a free promotion redemption and cancels the unused PaymentIntent.
+ */
+export async function recordFreeEventRedemption(promo: FreeEventPromotion) {
+  const { userId, eventId, paymentIntent, promotionCode, code, originalAmount } = promo;
+
+  await db
+    .insert(transaction)
+    .values({
+      userId,
+      stripe_payment_intent_id: paymentIntent.id,
+      purchase_type: "event",
+      payment_method_type: "promotion_code",
+      amount: "0",
+      currency: paymentIntent.currency,
+      event_id: String(eventId),
+      paid_at: new Date(),
+      status: "succeeded",
+    })
+    .onConflictDoNothing({ target: transaction.stripe_payment_intent_id });
+
+  // The user is already registered at this point, so cleanup failures are logged, not thrown.
+  try {
+    await stripe.paymentIntents.update(paymentIntent.id, {
+      metadata: {
+        ...paymentIntent.metadata,
+        promotionCode: code,
+        promotionCodeId: promotionCode.id,
+        originalAmount: String(originalAmount),
+        freeRedemption: "true",
+      },
+    });
+    await stripe.paymentIntents.cancel(paymentIntent.id);
+  } catch (err) {
+    console.error("[recordFreeEventRedemption] failed to cancel PaymentIntent", paymentIntent.id, err);
+  }
+  await redis.del(`pi:${paymentIntent.id}`, `user:${userId}:intent`);
 }
 
 // Utility function to create a price for a product

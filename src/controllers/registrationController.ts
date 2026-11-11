@@ -14,12 +14,14 @@ import {
 } from "../db/schema/event";
 import { validateAdmin } from "../lib/validateSession";
 import { sendReceiptEmail } from "../lib/receipts";
-import { sendHttpError } from "../lib/utils";
+import { httpError, sendHttpError } from "../lib/utils";
+import { recordFreeEventRedemption, verifyFreeEventPromotion } from "../lib/stripe";
 import {
   assertEventNotStarted,
   assertFreeForUser,
   assertMemberIfRequired,
   assertOnboardingComplete,
+  EventRecord,
   getEventOrThrow,
   getSessionUserId,
   getUserProfileOrThrow,
@@ -159,92 +161,118 @@ export const getEventRegistrations = async (req: Request, res: Response) => {
   }
 };
 
+// Registers a user without a Stripe payment. `requireFree` is false only when a promotion code
+// has already been verified to make the event free.
+async function registerWithoutPayment(
+  userId: string,
+  eventExists: EventRecord,
+  opts: {
+    requireFree: boolean;
+    responses?: unknown;
+    stripeTransactionId?: string | null;
+  }
+) {
+  const eventId = eventExists.id;
+
+  assertEventNotStarted(eventExists);
+
+  const profile = await getUserProfileOrThrow(userId);
+  if (requiresOnboarding(eventExists)) {
+    assertOnboardingComplete(profile);
+  }
+  assertMemberIfRequired(eventExists, profile);
+  if (opts.requireFree) {
+    assertFreeForUser(eventExists, profile);
+  }
+
+  // Check if user is already registered for this event
+  const [existingRegistration] = await db
+    .select()
+    .from(eventRegistration)
+    .where(
+      and(
+        eq(eventRegistration.eventId, eventId),
+        eq(eventRegistration.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (existingRegistration) {
+    throw httpError(409, "already_registered", "Already registered for this event");
+  }
+
+  // Check attendee cap if it exists
+
+  if (eventExists.attendeeCap) {
+    const [currentAttendeeCount] = await db
+    .select({count: sql<number>`count(*)::int`})
+    .from(eventRegistration)
+    .where(eq(eventRegistration.eventId, eventId));
+
+    if (currentAttendeeCount.count >= eventExists.attendeeCap) {
+      throw httpError(409, "event_full", "Event is full");
+    }
+  }
+
+  // Create the signup
+  const [newSignup] = await db
+    .insert(eventRegistration)
+    .values({
+      userId: userId,
+      eventId: eventId,
+      stripeTransactionId: opts.stripeTransactionId || null, // in case there is no payment (eg. free event)
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  // If there are form responses, save them
+  const { responses } = opts;
+  if (responses && Array.isArray(responses)) {
+    const responseValues = responses.map((resp: { questionId: number, response: string }) => ({
+      signupId: newSignup.id,
+      questionId: resp.questionId,
+      response: resp.response,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    if (responseValues.length > 0) {
+      await db.insert(eventRegistrationResponse).values(responseValues);
+    }
+  }
+
+  return newSignup;
+}
+
+async function sendFreeEventReceipt(userId: string, eventId: number) {
+  // sendEmail here: but change signature to not require intent 
+  try {
+    await sendReceiptEmail({
+      userId: userId,     
+      purchaseType: "event",  // "membership" | "event"
+      eventId: eventId,
+    });
+    console.log("Receipt email queued/sent");
+  } catch (err) {
+    // Do NOT throw or try to regenerate another webhook hit from stripe 
+    console.error("[sendReceiptEmail] failed:", err);
+  }
+}
+
 export const createRegistration = async (req: Request, res: Response) => {
   try {
     const userId = await getSessionUserId(req);
     const eventExists = await getEventOrThrow(Number(req.params.id));
-    const eventId = eventExists.id;
-
-    assertEventNotStarted(eventExists);
-
-    const profile = await getUserProfileOrThrow(userId);
-    if (requiresOnboarding(eventExists)) {
-      assertOnboardingComplete(profile);
-    }
-    assertMemberIfRequired(eventExists, profile);
-    assertFreeForUser(eventExists, profile);
-
-    // Check if user is already registered for this event
-    const [existingRegistration] = await db
-      .select()
-      .from(eventRegistration)
-      .where(
-        and(
-          eq(eventRegistration.eventId, eventId),
-          eq(eventRegistration.userId, userId)
-        )
-      )
-      .limit(1);
-
-    if (existingRegistration) {
-      return res.status(409).json({ error: "Already registered for this event" });
-    }
 
     const { responses, stripeTransactionId } = req.body;
+    const newSignup = await registerWithoutPayment(userId, eventExists, {
+      requireFree: true,
+      responses,
+      stripeTransactionId,
+    });
 
-    // Check attendee cap if it exists
-
-    if (eventExists.attendeeCap) {
-      const [currentAttendeeCount] = await db
-      .select({count: sql<number>`count(*)::int`})
-      .from(eventRegistration)
-      .where(eq(eventRegistration.eventId, eventId));
-
-      if (currentAttendeeCount.count >= eventExists.attendeeCap) {
-        return  res.status(409).json({ error: "Event is full"});
-      }
-    }
-
-    // Create the signup
-    const [newSignup] = await db
-      .insert(eventRegistration)
-      .values({
-        userId: userId,
-        eventId: eventId,
-        stripeTransactionId: stripeTransactionId || null, // in case there is no payment (eg. free event)
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning();
-
-    // If there are form responses, save them
-    if (responses && Array.isArray(responses)) {
-      const responseValues = responses.map((resp: { questionId: number, response: string }) => ({
-        signupId: newSignup.id,
-        questionId: resp.questionId,
-        response: resp.response,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-
-      if (responseValues.length > 0) {
-        await db.insert(eventRegistrationResponse).values(responseValues);
-      }
-    }
-
-    // sendEmail here: but change signature to not require intent 
-    try {
-      await sendReceiptEmail({
-        userId: userId,     
-        purchaseType: "event",  // "membership" | "event"
-        eventId: eventId,
-      });
-      console.log("Receipt email queued/sent");
-    } catch (err) {
-      // Do NOT throw or try to regenerate another webhook hit from stripe 
-      console.error("[sendReceiptEmail] failed:", err);
-    }
-
+    await sendFreeEventReceipt(userId, eventExists.id);
 
     return res.status(201).json({
       message: "Successfully registered for event",
@@ -252,6 +280,32 @@ export const createRegistration = async (req: Request, res: Response) => {
     });
   } catch (error) {
     return sendHttpError(res, error, "Error creating registration:");
+  }
+};
+
+export const redeemFreeRegistration = async (req: Request, res: Response) => {
+  try {
+    const userId = await getSessionUserId(req);
+    const eventExists = await getEventOrThrow(Number(req.params.id));
+
+    const { paymentIntentId, code, responses } = req.body;
+    const promo = await verifyFreeEventPromotion(userId, eventExists.id, paymentIntentId, code);
+
+    const newSignup = await registerWithoutPayment(userId, eventExists, {
+      requireFree: false,
+      responses,
+      stripeTransactionId: promo.paymentIntent.id,
+    });
+
+    await recordFreeEventRedemption(promo);
+    await sendFreeEventReceipt(userId, eventExists.id);
+
+    return res.status(201).json({
+      message: "Successfully registered for event",
+      signup: newSignup,
+    });
+  } catch (error) {
+    return sendHttpError(res, error, "Error redeeming free registration:");
   }
 };
 
