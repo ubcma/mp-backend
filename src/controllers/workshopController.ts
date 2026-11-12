@@ -60,64 +60,107 @@ export const setWorkshopSelection = async (req: Request, res: Response) => {
   try {
     const userId = await getSessionUserId(req);
     const evt = await getEventOrThrow(Number(req.params.id));
-    assertEventNotStarted(evt);
 
-    const selected = await assertWorkshopSelection(evt.id, req.body?.workshopIds);
+    const rawRegistrationId = req.body?.registrationId;
+    const isAdminEdit = rawRegistrationId != null;
+    let registrationId: number | null = null;
+
+    if (isAdminEdit) {
+      await assertAdmin(userId);
+      if (!Number.isInteger(rawRegistrationId)) {
+        throw httpError(400, "invalid_registration_id", "registrationId must be an integer");
+      }
+      registrationId = rawRegistrationId;
+    } else {
+      assertEventNotStarted(evt);
+    }
+
+    const desired = await assertWorkshopSelection(
+      evt.id,
+      isAdminEdit ? req.body?.selectionsBySlot : req.body?.workshopIds,
+      { allowClear: isAdminEdit }
+    );
 
     const picks = await db.transaction(async (tx) => {
+      const registrationWhere = isAdminEdit
+        ? and(
+            eq(eventRegistration.eventId, evt.id),
+            eq(eventRegistration.id, registrationId as number)
+          )
+        : and(eq(eventRegistration.eventId, evt.id), eq(eventRegistration.userId, userId));
+
       const [registration] = await tx
         .select({ id: eventRegistration.id, status: eventRegistration.status })
         .from(eventRegistration)
-        .where(and(eq(eventRegistration.eventId, evt.id), eq(eventRegistration.userId, userId)))
+        .where(registrationWhere)
         .limit(1)
         .for("update");
 
       if (!registration) {
-        throw httpError(403, "not_registered", "Register for this event before picking workshops");
+        throw isAdminEdit
+          ? httpError(404, "registration_not_found", "Registration not found")
+          : httpError(403, "not_registered", "Register for this event before picking workshops");
       }
-      if (registration.status === "checkedIn") {
+      if (!isAdminEdit && registration.status === "checkedIn") {
         throw httpError(409, "already_checked_in", "Workshop picks can't be changed after check-in");
       }
 
+      const targetIds = desired
+        .map((pick) => pick.workshopId)
+        .filter((id): id is number => id != null);
+
       // Lock in id order so concurrent requests for overlapping workshops can't deadlock.
-      const targets = await tx
-        .select({ id: workshop.id, capacity: workshop.capacity })
-        .from(workshop)
-        .where(inArray(workshop.id, selected.map((w) => w.id)))
-        .orderBy(asc(workshop.id))
-        .for("update");
+      const targets = targetIds.length
+        ? await tx
+            .select({ id: workshop.id, capacity: workshop.capacity })
+            .from(workshop)
+            .where(inArray(workshop.id, targetIds))
+            .orderBy(asc(workshop.id))
+            .for("update")
+        : [];
 
       const existing = await tx
         .select({ id: workshopRegistration.id, slot: workshopRegistration.slot, workshopId: workshopRegistration.workshopId })
         .from(workshopRegistration)
         .where(eq(workshopRegistration.registrationId, registration.id));
 
-      const changes = selected
-        .map((w) => ({ ...w, current: existing.find((e) => e.slot === w.slot) }))
-        .filter((w) => w.current?.workshopId !== w.id);
+      const changes = desired
+        .map((pick) => ({ ...pick, current: existing.find((row) => row.slot === pick.slot) }))
+        .filter((pick) => (pick.current?.workshopId ?? null) !== pick.workshopId);
 
       for (const change of changes) {
+        if (change.workshopId == null) continue;
+
         const [{ count }] = await tx
           .select({ count: sql<number>`count(*)::int` })
           .from(workshopRegistration)
-          .where(eq(workshopRegistration.workshopId, change.id));
+          .where(eq(workshopRegistration.workshopId, change.workshopId));
 
-        const capacity = targets.find((t) => t.id === change.id)!.capacity;
+        const capacity = targets.find((target) => target.id === change.workshopId)!.capacity;
         if (count >= capacity) {
           throw httpError(409, "workshop_full", "One of the selected workshops is full");
         }
       }
 
       for (const change of changes) {
+        if (change.workshopId == null) {
+          if (change.current) {
+            await tx
+              .delete(workshopRegistration)
+              .where(eq(workshopRegistration.id, change.current.id));
+          }
+          continue;
+        }
+
         if (change.current) {
           await tx
             .update(workshopRegistration)
-            .set({ workshopId: change.id, updatedAt: new Date() })
+            .set({ workshopId: change.workshopId, updatedAt: new Date() })
             .where(eq(workshopRegistration.id, change.current.id));
         } else {
           await tx.insert(workshopRegistration).values({
             registrationId: registration.id,
-            workshopId: change.id,
+            workshopId: change.workshopId,
             slot: change.slot,
           });
         }
