@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { auth } from "./auth";
 import { httpError } from "./utils";
@@ -122,8 +122,58 @@ export function parseWorkshopInput(
   };
 }
 
-// Requires exactly one workshop per slot, covering every slot the event has.
-export async function assertWorkshopSelection(eventId: number, workshopIds: unknown) {
+export type WorkshopSlotPick = { slot: number; workshopId: number | null };
+
+// Attendees pass workshopIds. Admins pass selectionsBySlot and may use null to clear a slot.
+export async function assertWorkshopSelection(
+  eventId: number,
+  selection: unknown,
+  options?: { allowClear?: boolean }
+): Promise<WorkshopSlotPick[]> {
+  const allowClear = options?.allowClear ?? false;
+  const workshops = await db
+    .select({ id: workshop.id, slot: workshop.slot })
+    .from(workshop)
+    .where(eq(workshop.eventId, eventId));
+
+  const slots = [...new Set(workshops.map((row) => row.slot))].sort((a, b) => a - b);
+  const picks = allowClear
+    ? parseSelectionsBySlot(selection, slots)
+    : parseWorkshopIds(selection, workshops);
+
+  const ids = picks
+    .map((pick) => pick.workshopId)
+    .filter((id): id is number => id != null);
+  if (new Set(ids).size !== ids.length) {
+    throw httpError(400, "invalid_selection", "Each workshop can only be picked once");
+  }
+
+  const byId = new Map(workshops.map((row) => [row.id, row]));
+  if (ids.some((id) => !byId.has(id))) {
+    throw httpError(404, "workshop_not_found", "One or more workshops were not found for this event");
+  }
+
+  const covered = new Set<number>();
+  for (const pick of picks) {
+    if (pick.workshopId == null) continue;
+    const match = byId.get(pick.workshopId)!;
+    if (match.slot !== pick.slot || covered.has(pick.slot)) {
+      throw httpError(400, "invalid_selection", "Pick only one workshop per slot");
+    }
+    covered.add(pick.slot);
+  }
+
+  if (!allowClear && covered.size !== slots.length) {
+    throw httpError(400, "invalid_selection", "Pick one workshop for every slot");
+  }
+
+  return picks;
+}
+
+function parseWorkshopIds(
+  workshopIds: unknown,
+  workshops: { id: number; slot: number }[]
+): WorkshopSlotPick[] {
   if (
     !Array.isArray(workshopIds) ||
     workshopIds.length === 0 ||
@@ -132,32 +182,37 @@ export async function assertWorkshopSelection(eventId: number, workshopIds: unkn
     throw httpError(400, "invalid_selection", "workshopIds must be a non-empty array of workshop ids");
   }
 
-  const ids = workshopIds as number[];
-  if (new Set(ids).size !== ids.length) {
-    throw httpError(400, "invalid_selection", "Each workshop can only be picked once");
+  const byId = new Map(workshops.map((row) => [row.id, row.slot]));
+  return (workshopIds as number[]).map((id) => ({
+    slot: byId.get(id) ?? -1,
+    workshopId: id,
+  }));
+}
+
+function parseSelectionsBySlot(selection: unknown, slots: number[]): WorkshopSlotPick[] {
+  if (selection == null || typeof selection !== "object" || Array.isArray(selection)) {
+    throw httpError(400, "invalid_selection", "selectionsBySlot must include every workshop slot");
   }
 
-  const selected = await db
-    .select({ id: workshop.id, slot: workshop.slot })
-    .from(workshop)
-    .where(and(eq(workshop.eventId, eventId), inArray(workshop.id, ids)));
-
-  if (selected.length !== ids.length) {
-    throw httpError(404, "workshop_not_found", "One or more workshops were not found for this event");
+  const input = selection as Record<string, unknown>;
+  const expected = new Set(slots.map(String));
+  for (const key of Object.keys(input)) {
+    if (!expected.has(key)) {
+      throw httpError(400, "invalid_selection", `Unknown workshop slot ${key}`);
+    }
   }
 
-  const eventSlots = await db
-    .selectDistinct({ slot: workshop.slot })
-    .from(workshop)
-    .where(eq(workshop.eventId, eventId));
+  return slots.map((slot) => {
+    const key = String(slot);
+    if (!(key in input)) {
+      throw httpError(400, "invalid_selection", `Missing selection for slot ${slot}`);
+    }
 
-  const selectedSlots = new Set(selected.map((w) => w.slot));
-  if (selectedSlots.size !== selected.length) {
-    throw httpError(400, "invalid_selection", "Pick only one workshop per slot");
-  }
-  if (selectedSlots.size !== eventSlots.length) {
-    throw httpError(400, "invalid_selection", "Pick one workshop for every slot");
-  }
-
-  return selected;
+    const value = input[key];
+    if (value === null) return { slot, workshopId: null };
+    if (!Number.isInteger(value)) {
+      throw httpError(400, "invalid_selection", `Slot ${slot} must be a workshop id or null`);
+    }
+    return { slot, workshopId: value as number };
+  });
 }
