@@ -37,6 +37,7 @@ export const getAllowedOrigins = () => {
     "https://app.ubcma.ca",
     "https://preview.ubcma.ca",
     "https://network.ubcma.ca",
+    "https://gateways.ubcma.ca",
     "http://localhost:3000",
     "http://localhost:3001",
   ];
@@ -130,11 +131,13 @@ export const auth = betterAuth({
       sameSite: cookieSameSite,
     },
   },
+  // Per-IP (Redis). Sized for Gateways morning sign-in on shared venue WiFi;
+  // override with AUTH_RATE_LIMIT_WINDOW / AUTH_RATE_LIMIT_MAX.
   rateLimit: {
     enabled: true,
     storage: "secondary-storage",
-    window: 60,
-    max: 100,
+    window: Number(process.env.AUTH_RATE_LIMIT_WINDOW) || 60,
+    max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 1_000,
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url, token }, request) => {

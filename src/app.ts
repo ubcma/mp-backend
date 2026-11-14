@@ -25,10 +25,15 @@ const app = express();
 if (process.env.NODE_ENV !== "development") {
   app.set("trust proxy", 1); // trust first proxy for rate limiting
 
+  // Per-IP. Venue WiFi shares one public IP across ~170 Gateways attendees, so
+  // defaults are sized for a shared NAT burst (portal + companion), not a single user.
+  // Override with RATE_LIMIT_WINDOW_MS / RATE_LIMIT_MAX if needed.
+  const windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS) || 10 * 60 * 1000;
+  const max = Number(process.env.RATE_LIMIT_MAX) || 10_000;
   const limiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    max: 100,
-    standardHeaders: 'draft-8',
+    windowMs,
+    max,
+    standardHeaders: "draft-8",
     keyGenerator: (req) => ipKeyGenerator(req.ip ?? "unknown-ip"),
     statusCode: 429,
     message: "Too many requests, please try again later",
